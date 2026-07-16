@@ -128,6 +128,29 @@ footer{font-size:12px;color:var(--mut);line-height:1.8;border-top:1px solid var(
 .sheet.open,.sheet-back.open{display:block}
 button:focus-visible,input:focus-visible{outline:2px solid var(--violet);outline-offset:2px}
 
+/* ── Desktop layout (≥900px): wider canvas, 4-col stats, 3-col steps,
+      centered action card, connect sheet becomes a centered modal ── */
+@media (min-width: 900px){
+  .wrap{max-width:880px;padding:0 32px 80px}
+  header{padding:28px 0 36px}
+  .brand .name{font-size:14px}
+  .backing{font-size:76px}
+  .rail{height:32px}
+  .stats{grid-template-columns:repeat(4,1fr)}
+  .how{grid-template-columns:repeat(3,1fr)}
+  .card{max-width:620px;margin-left:auto;margin-right:auto}
+  .epoch{max-width:620px;margin-left:auto;margin-right:auto}
+  .vaultbar{justify-content:flex-start}
+  .sheet{
+    bottom:auto;top:50%;left:50%;right:auto;
+    transform:translate(-50%,-50%);
+    width:420px;max-width:90vw;
+    border-radius:20px;border:1px solid var(--line);
+    padding:24px 22px 26px;
+  }
+}
+
+
 /* vault switcher */
 .vaultbar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 26px}
 .vpill{font-family:'Michroma';font-size:11px;letter-spacing:.06em;padding:10px 16px;border-radius:99px;
@@ -393,15 +416,34 @@ async function activateVault(key){
 /* ---------- reads ---------- */
 async function refresh(){
   if(!cur) return;
-  if(!cur.vr){ $("backingNum").textContent="1.0000"; setStatus(cur.cfg.name+" is not configured yet: set its vault address in this file","err"); return; }
+
+  // RPC health check runs regardless of vault-configured status, since
+  // asset-balance reads need it too.
+  if(!rpcHealthy){
+    const ok = await ensureRpc();
+    if(!ok){ setStatus("All RPC endpoints are unreachable — check your connection or add another endpoint to CHAIN.rpcs.","err"); return; }
+    cur.ar = new ethers.Contract(cur.cfg.assetAddr, ERC20_ABI, readProvider);
+    if(cur.cfg.vault) cur.vr = new ethers.Contract(cur.cfg.vault, VAULT_ABI, readProvider);
+  }
+
+  // Asset balance is independent of the vault contract existing — fetch it
+  // whenever a wallet is connected, vault-configured or not.
+  if(account){
+    try{
+      const ua = await cur.ar.balanceOf(account);
+      bal.asset=ua;
+      $("userAsset").textContent=fmt(ua,cur.aDec);
+      if(mode==="mint") $("inBal").textContent="Balance: "+fmt(ua,cur.aDec);
+    }catch(e){ console.error("asset balance read failed",e); rpcHealthy=false; }
+  }
+
+  if(!cur.vr){
+    $("backingNum").textContent="1.0000";
+    setStatus(cur.cfg.name+" is not configured yet: set its vault address in this file","err");
+    return;
+  }
+
   try{
-    // rebind read-contracts to the current (possibly rotated) provider
-    if(!rpcHealthy){
-      const ok = await ensureRpc();
-      if(!ok){ setStatus("All RPC endpoints are unreachable — check your connection or add another endpoint to CHAIN.rpcs.","err"); return; }
-      cur.ar = new ethers.Contract(cur.cfg.assetAddr, ERC20_ABI, readProvider);
-      cur.vr = new ethers.Contract(cur.cfg.vault, VAULT_ABI, readProvider);
-    }
     const [backing,vb,ts,quota,tnext]=await Promise.all([
       cur.vr.backingPerToken(),cur.vr.vaultBalance(),
       cur.vr.totalSupply(),cur.vr.mintQuotaRemaining(),cur.vr.timeToNextEpoch()
@@ -413,11 +455,10 @@ async function refresh(){
     $("quota").textContent=quota>=MAXU/2n?"unlimited (genesis)":fmt(quota,cur.tDec)+" "+cur.cfg.token;
     epochSecs=Number(tnext); epochFetched=Date.now();
     if(account){
-      const [ua,ut]=await Promise.all([cur.ar.balanceOf(account),cur.vr.balanceOf(account)]);
-      bal.asset=ua; bal.token=ut;
-      $("userAsset").textContent=fmt(ua,cur.aDec);
+      const ut = await cur.vr.balanceOf(account);
+      bal.token=ut;
       $("userTok").textContent=fmt(ut,cur.tDec);
-      $("inBal").textContent="Balance: "+(mode==="mint"?fmt(ua,cur.aDec):fmt(ut,cur.tDec));
+      if(mode==="redeem") $("inBal").textContent="Balance: "+fmt(ut,cur.tDec);
     }
     setStatus("");
   }catch(e){
