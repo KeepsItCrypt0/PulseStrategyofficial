@@ -151,6 +151,15 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--violet);outline
 }
 
 
+/* liquidity pools */
+.pool{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:14px 16px;margin-bottom:10px;flex-wrap:wrap}
+.pool .pname{font-weight:600;font-size:14px}
+.pool .pdepth{font-family:'IBM Plex Mono';font-size:12px;color:var(--mut)}
+.pool .papr{font-family:'IBM Plex Mono';font-size:15px;font-weight:600;color:var(--mint);white-space:nowrap}
+.pool .papr small{display:block;font-family:'Space Grotesk';font-weight:400;font-size:10px;color:var(--mut);text-align:right}
+
 /* vault switcher */
 .vaultbar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 26px}
 .vpill{font-family:'Michroma';font-size:11px;letter-spacing:.06em;padding:10px 16px;border-radius:99px;
@@ -223,6 +232,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--violet);outline
   <div class="status" id="status"></div>
 </section>
 
+<section id="poolsSec" style="display:none" aria-label="Liquidity pools">
+  <h2>Liquidity pools <small>Provide liquidity, earn the trading fees this system generates.</small></h2>
+  <div id="poolsList"></div>
+  <p class="rail-note" style="margin-top:10px">The arb-anchored floor and ceiling bound LP inventory risk — price mean-reverts around the ratchet instead of wandering freely. APR shown is trailing <b>realized</b> pool fees (annualized), not a promise, and excludes impermanent loss.</p>
+</section>
+
 <h2>How it works <small>Three moving parts.</small></h2>
 <div class="how">
   <div class="step"><h3><span>Mint</span> — the ceiling</h3><p>Deposit the vault's asset, receive vault tokens at backing <b>+4.5%</b>. 4.0% of the premium stays in the vault, raising the floor for every holder; 0.5% protocol fee. Minting is capped at 10% of supply per 7-day epoch; when the quota fills, the DEX is the only source until the next epoch.</p></div>
@@ -243,6 +258,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--violet);outline
     <span id="assetLinkLabel">Asset: </span><span class="mono" id="assetLink"></span>
   </div>
   <div id="footerLine"></div>
+  <div style="margin-top:12px" id="verifyBlock">
+    <a href="#" id="dlLink">⬇ Download this app</a> — run it locally; it works without this server.<br>
+    <span style="opacity:.8">SHA-256 of this file: <span class="mono" id="fileHash">computing…</span></span><br>
+    <span style="opacity:.8">Cross-check the hash against the one published on our X/GitHub before trusting a downloaded copy.</span>
+  </div>
 </footer>
 
 </div>
@@ -280,15 +300,16 @@ const SITE = {
 
 const CHAIN = {
   id: 369, hex: "0x171", name: "PulseChain",
-  rpcs: [                                    // tried in order; first responsive one wins
+  rpcs: [                     // tried in order; first responsive one wins
     "https://pulsechain-rpc.publicnode.com",
     "https://rpc.pulsechain.com"
   ],
   explorer: "https://otherscan.pulsechain.box/address/",
-  nativeCurrency: { name:"Pulse", symbol:"PLS", decimals:18 }
+  nativeCurrency: { name:"Pulse", symbol:"PLS", decimals:18 },
+  blockTimeSec: 10     // avg block time; used for the trailing-APR window
 };
 
-const WC_PROJECT_ID = "dfa53b26ebcaa8d274b2a7f6ddc66cb0";   // free at https://cloud.reown.com (enables WalletConnect)
+const WC_PROJECT_ID = "dfa53b26ebcaa8d274b2a7f6ddc66cb0";
 
 /* One entry per vault ON THIS CHAIN. To add a vault (any decimals — 8-dec HEX,
    18-dec vPLS, etc.): deploy the StrategyVault template, then add one object
@@ -299,51 +320,84 @@ const VAULTS = [
     name: "PulseStrategy",
     token: "PLSstr",
     assetSym: "vPLS",
-    vault: "",                   // <-- deployed PLSTR vault address
+    vault: "",                    // <-- deployed PLSstr vault address
     assetAddr: "0x79BB3A0Ee435f957ce4f54eE8c3CFADc7278da0C",     // vPLS
-    yieldNote: "each vPLS itself earns PLS staking yield underneath"
+    yieldNote: "each vPLS itself earns PLS staking yield underneath",
+    pools: [
+      // V2-style pair addresses; add one line per pool once they exist.
+      // { name: "PLSstr / USDC · PulseX", address: "0x..." },
+      // { name: "PLSstr / vPLS · PulseX",  address: "0x..." },
+    ]
   },
-  
-  {
-     key: "HEXstr-3000",
-     name: "HEXstrategy-3000",
-     token: "HEXstr-3000",
-     assetSym: "HTT-3000",
-     vault: "",                   // <--  // deployed HexVault address
-     assetAddr: "0xE9E1340A2b31d5D2a2dB28FB854a794E106b430a",                                  
-     yieldNote:"Growth comes from premiums, fees, donations, and the underlying yield from the HEX stakes. (HTT-3000 ENDDATE 02/18/2028 USERS MUST REDEEM HTT from vault to redeem HEX from actuator finance)",
+   
+  { 
+    key: "HEXstr-3000",
+    name: "HEXstrategy-3000",
+    token: "HEXstr-3000",
+    assetSym: "HTT-3000",
+    vault: "",           // <--  // deployed HexVault address
+    assetAddr: "0xE9E1340A2b31d5D2a2dB28FB854a794E106b430a",                                  
+    yieldNote:"Growth comes from premiums, fees, donations, and the.        
+    underlying yield from the HEX stakes. (HTT-3000 ENDDATE 02/18/2028  
+    USERS MUST REDEEM HTT from vault to redeem HEX from actuatorfinance)",
+    pools: [
+      // V2-style pair addresses; add one line per pool once they exist.
+      // { name: "HEXstr-3000 / HTT · PulseX", address: "0x..." },
+      // { name: "PLSTR / DAI · PulseX",  address: "0x..." },
+     ]
    },
    
-   {
+   { 
      key: "HEXstr-4000",
      name: "HEXstrategy-4000",
      token: "HEXstr-4000",
      assetSym: "HTT-4000",
      vault: "",                // <--      // deployed HexVault address
      assetAddr: "0x3Cf372aA6aAa46eDc4B8da86294deC0DDecED632",                                  
-     yieldNote:"Growth comes from premiums, fees, donations, and the underlying yield from the HEX stakes. (HTT-4000 ENDDATE 11/14/2030 USERS MUST REDEEM HTT from vault to redeem HEX from actuator finance)",
+     yieldNote:"Growth comes from premiums, fees, donations, and the 
+     underlying yield from the HEX stakes. (HTT-4000 ENDDATE 11/14/2030 
+     USERS MUST REDEEM HTT from vault to redeem HEX from actuatorfinance)",
+    pools: [
+      // V2-style pair addresses; add one line per pool once they exist.
+      // { name: "PLSTR / vPLS · PulseX", address: "0x..." },
+      // { name: "PLSTR / DAI · PulseX",  address: "0x..." },
+     ]
    },
    
-   {
+   { 
      key: "HEXstr-5000",
      name: "HEXstrategy-5000",
      token: "HEXstr-5000",
      assetSym: "HTT-5000",
      vault: "",                  // <--     // deployed HexVault address
      assetAddr: "0xE2D03779147A32064511dd2b9D37F66f3EeFAd7C",                                  
-     yieldNote:"Growth comes from premiums, fees, donations, and the underlying yield from the HEX stakes. (HTT-5000 ENDDATE 08/10/2033 USERS MUST REDEEM HTT from vault to redeem HEX from actuator finance)",
+     yieldNote:"Growth comes from premiums, fees, donations, and the 
+     underlying yield from the HEX stakes. (HTT-5000 ENDDATE 08/10/2033
+     USERS MUST REDEEM HTT from vault to redeem HEX from actuatorfinance)",
+    pools: [
+      // V2-style pair addresses; add one line per pool once they exist.
+      // { name: "PLSTR / vPLS · PulseX", address: "0x..." },
+      // { name: "PLSTR / DAI · PulseX",  address: "0x..." },
+     ]
    },
-   
-   {
+
+   { 
      key: "HEXstr-6000",
      name: "HEXstrategy-6000",
      token: "HEXstr-6000",
      assetSym: "HTT-6000",
      vault: "",                  // <--     // deployed HexVault address
      assetAddr: "0xcdBFaf528c7CeA55d0AEbdB93C218D6f23B24af3",                                  
-     yieldNote:"Growth comes from premiums, fees, donations, and the underlying yield from the HEX stakes. (HTT-6000 ENDDATE 05/06/2036 USERS MUST REDEEM HTT from vault to redeem HEX from actuator finance)",
+     yieldNote:"Growth comes from premiums, fees, donations, and the 
+     underlying yield from the HEX stakes. (HTT-6000 ENDDATE 05/06/2036 
+     USERS MUST REDEEM HTT from vault to redeem HEX from actuatorfinance)",
+    pools: [
+      // V2-style pair addresses; add one line per pool once they exist.
+      // { name: "PLSTR / vPLS · PulseX", address: "0x..." },
+      // { name: "PLSTR / DAI · PulseX",  address: "0x..." },
+     ]
    },
-   
+
    {
      key: "HEXstr-7000",
      name: "HEXstrategy-7000",
@@ -351,8 +405,16 @@ const VAULTS = [
      assetSym: "HTT-7000",
      vault: "",                  // <--     // deployed HexVault address
      assetAddr: "0x47810bb3ECDc6b080CeB2d39E769F21Ff14AB7E9",                                  
-     yieldNote:"Growth comes from premiums, fees, donations, and the underlying yield from the HEX stakes. (HTT-7000 ENDDATE 01/31/2039 USERS MUST REDEEM HTT from vault to redeem HEX from actuator finance)",
+     yieldNote:"Growth comes from premiums, fees, donations, and the 
+     underlying yield from the HEX stakes. (HTT-7000 ENDDATE 01/31/2039 
+     USERS MUST REDEEM HTT from vault to redeem HEX from actuatorfinance)",
+    pools: [
+      // V2-style pair addresses; add one line per pool once they exist.
+      // { name: "PLSTR / vPLS · PulseX", address: "0x..." },
+      // { name: "PLSTR / DAI · PulseX",  address: "0x..." },
+     ]
    },
+
 ];
 /* ════════════════════════════ end of config ════════════════════════════════ */
 
@@ -369,6 +431,14 @@ const VAULT_ABI = [
   "function mintQuotaRemaining() view returns (uint256)",
   "function timeToNextEpoch() view returns (uint256)"
 ];
+const PAIR_ABI = [
+  "function getReserves() view returns (uint112,uint112,uint32)",
+  "function totalSupply() view returns (uint256)",
+  "function token0() view returns (address)",
+  "function token1() view returns (address)"
+];
+const SYM_ABI = ["function symbol() view returns (string)","function decimals() view returns (uint8)"];
+
 const ERC20_ABI = [
   "function balanceOf(address) view returns (uint256)",
   "function allowance(address,address) view returns (uint256)",
@@ -453,7 +523,69 @@ async function activateVault(key){
 
   bal={asset:0n, token:0n}; previewOut=0n; $("amt").value="";
   setMode("mint");
+  loadPools(cfg);
   await refresh();
+}
+
+/* ── Liquidity pools: depth + trailing realized fee APR ──
+   V2 math: LP value from fees grows as sqrt(k)/totalSupply. Comparing that
+   ratio now vs ~7 days ago gives realized fee yield; annualize for APR.
+   Needs an RPC that can answer week-old state queries; degrades to n/a. */
+function isqrt(n){ if(n<2n) return n; let x=n, y=(x+1n)/2n; while(y<x){x=y;y=(x+n/x)/2n;} return x; }
+async function pairSnapshot(pair, blockTag){
+  const o = blockTag ? {blockTag} : {};
+  const [res, L] = await Promise.all([pair.getReserves(o), pair.totalSupply(o)]);
+  if (L === 0n) throw new Error("no LP supply");
+  const k = isqrt(BigInt(res[0]) * BigInt(res[1]));
+  return { ratio: Number(k * 10n**18n / L) / 1e18, r0: BigInt(res[0]), r1: BigInt(res[1]) };
+}
+async function loadPools(cfg){
+  const sec = $("poolsSec"), list = $("poolsList");
+  const pools = (cfg.pools||[]).filter(p=>p.address);
+  if(!pools.length){ sec.style.display="none"; return; }
+  sec.style.display="block";
+  list.innerHTML = pools.map((p,i)=>
+    '<div class="pool"><div><div class="pname">'+p.name+'</div><div class="pdepth" id="pd'+i+'">loading…</div></div>'+
+    '<div class="papr" id="pa'+i+'">…<small>trailing 7d fee APR</small></div></div>').join("");
+  const nowBlock = await readProvider.getBlockNumber();
+  for(let i=0;i<pools.length;i++){
+    (async()=>{
+      try{
+        const pair = new ethers.Contract(pools[i].address, PAIR_ABI, readProvider);
+        // depth: both reserves with their symbols/decimals
+        const [t0,t1] = await Promise.all([pair.token0(), pair.token1()]);
+        const c0 = new ethers.Contract(t0, SYM_ABI, readProvider);
+        const c1 = new ethers.Contract(t1, SYM_ABI, readProvider);
+        const [s0,s1,d0,d1] = await Promise.all([c0.symbol(),c1.symbol(),c0.decimals(),c1.decimals()]);
+        const now = await pairSnapshot(pair, null);
+        $("pd"+i).textContent = fmt(now.r0,Number(d0),2)+" "+s0+" · "+fmt(now.r1,Number(d1),2)+" "+s1;
+        // APR: try 7d, then 3d, then 1d windows
+        const daysList = [7,3,1];
+        let apr = null, days = 7;
+        for (const d of daysList){
+          const back = nowBlock - Math.floor(d*86400/CHAIN.blockTimeSec);
+          if (back <= 0) continue;
+          try{
+            const past = await pairSnapshot(pair, back);
+            if (past.ratio > 0){
+              apr = (now.ratio/past.ratio - 1) * (365/d) * 100;
+              days = d; break;
+            }
+          }catch(_){/* pool too new or no archive at this depth */}
+        }
+        const el = $("pa"+i);
+        if (apr === null){
+          el.innerHTML = 'n/a<small>pool too new or RPC lacks history</small>';
+          el.style.color = "var(--mut)";
+        } else {
+          el.innerHTML = (apr>=0? apr.toFixed(2) : "0.00") + '%<small>trailing '+days+'d fee APR</small>';
+        }
+      }catch(e){
+        $("pd"+i).textContent = "unreadable";
+        const el=$("pa"+i); el.textContent="n/a"; el.style.color="var(--mut)";
+      }
+    })();
+  }
 }
 
 /* ---------- reads ---------- */
@@ -671,6 +803,36 @@ if (SITE.logo) { $("brandLogo").src = SITE.logo; $("brandLogo").style.display = 
   f += (f ? "<br>" : "") + "Frontend is a single open-source file; the contracts work without it.";
   $("footerLine").innerHTML = f;
 }
+
+/* ── Download-this-app + integrity hash ──
+   Fetches the exact file the server is serving (not the live DOM), hashes
+   it with SHA-256, and offers it for download. A user running a verified
+   local copy is immune to frontend/DNS hijacking — they trust only the
+   contract. On file:// (already running locally) the block adapts. */
+(async function(){
+  const vb = $("verifyBlock");
+  if (location.protocol === "file:") {
+    vb.innerHTML = '<span style="color:var(--mint)">✓ You are running a local copy — no server trust required.</span>';
+    return;
+  }
+  try{
+    const res = await fetch(location.href, {cache:"no-store"});
+    const buf = await res.arrayBuffer();
+    const digest = await crypto.subtle.digest("SHA-256", buf);
+    const hex = [...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,"0")).join("");
+    $("fileHash").textContent = hex;
+    $("dlLink").onclick = (e)=>{
+      e.preventDefault();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([buf], {type:"text/html"}));
+      a.download = (location.pathname.split("/").pop() || "vaults") .replace(/\.html?$/,"") + ".html";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+  }catch(e){
+    $("fileHash").textContent = "unavailable (fetch blocked)";
+  }
+})();
 
 const bar=$("vaultbar");
 VAULTS.forEach(v=>{
