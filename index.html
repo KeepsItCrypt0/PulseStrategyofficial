@@ -259,7 +259,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--violet);outline
   </div>
   <div id="footerLine"></div>
   <div style="margin-top:12px" id="verifyBlock">
-    <a href="#" id="dlLink">⬇ Download this app</a> — run it locally desktop or mobile; it works without this server.<br>
+    <a href="#" id="dlLink">⬇ Download this app </a> — run it locally desktop or MOBILE; it works without this server.<br>
     <span style="opacity:.8">SHA-256 of this file: <span class="mono" id="fileHash">computing…</span></span><br>
     <span style="opacity:.8">Cross-check the hash against the one published on our X/GitHub before trusting a downloaded copy.</span>
   </div>
@@ -330,22 +330,6 @@ const VAULTS = [
       // { name: "PLSstr/DAI · PulseX",  address: "0x..." },
     ]
   },
- 
-  {
-    key: "HEXstr-3000",
-    name: "HEXstrategy-3000",
-    token: "HEXstr-3000",
-    assetSym: "HTT-3000",
-    vault: "",                  // <--     // deployed HexVault address
-    assetAddr: "0xE9E1340A2b31d5D2a2dB28FB854a794E106b430a",                                  
-    yieldNote:"Growth comes from premiums, fees, donations, and the underlying yield from the HEX stakes. (HTT-3000 ENDDATE 2/18/28 USERS MUST REDEEM HTT from vault to redeem HEX from actuator finance)",
-    pools: [
-      // V2-style pair addresses; add one line per pool once they exist.
-      // { name: "HEXstr-3000/HEX · PulseX", address: "0x..." },
-      // { name: "HEXstr-3000/PLS · PulseX",  address: "0x..." },
-      // { name: "HEXstr-3000/DAI · PulseX",  address: "0x..." },
-    ]
-  },
 
   {
     key: "HEXstr-4000",
@@ -408,6 +392,22 @@ const VAULTS = [
       // { name: "HEXstr-7000/HEX · PulseX", address: "0x..." },
       // { name: "HEXstr-7000/PLS · PulseX",  address: "0x..." },
       // { name: "HEXstr-7000/DAI · PulseX",  address: "0x..." },
+    ]
+  },
+    
+  {
+    key: "HEXstr-8000",
+    name: "HEXstrategy-8000",
+    token: "HEXstr-8000",
+    assetSym: "HTT-8000",
+    vault: "",                  // <--     // deployed HexVault address
+    assetAddr: "0xA737EA6FF4094FeDEe5a762CA34116207f34B4c6",                                  
+    yieldNote:"Growth comes from premiums, fees, donations, and the underlying yield from the HEX stakes. (HTT-8000 ENDDATE 10/27/41 USERS MUST REDEEM HTT from vault to redeem HEX from actuator finance)",
+    pools: [
+      // V2-style pair addresses; add one line per pool once they exist.
+      // { name: "HEXstr-8000/HEX · PulseX", address: "0x..." },
+      // { name: "HEXstr-8000/PLS · PulseX",  address: "0x..." },
+      // { name: "HEXstr-8000/DAI · PulseX",  address: "0x..." },
     ]
   },
 ];
@@ -839,4 +839,4 @@ VAULTS.forEach(v=>{
 activateVault(VAULTS[0].key);
 </script>
 </body>
-</html>
+  </html>
