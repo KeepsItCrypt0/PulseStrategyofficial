@@ -1,0 +1,11 @@
+# Cloudflare Pages routing for PulseVerify explorer
+# Wallet-style explorer paths → serve the explorer (index.html), which reads the path via JS.
+# 200 = rewrite (URL stays the same in the address bar), not a 301 redirect.
+
+/address/*   /index.html   200
+/account/*   /index.html   200
+/tx/*        /index.html   200
+/transaction/*  /index.html  200
+/token/*     /index.html   200
+/contract/*  /index.html   200
+/block/*     /index.html   200
