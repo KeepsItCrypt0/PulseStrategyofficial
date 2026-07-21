@@ -1,8 +1,14 @@
 {
+  "$schema": "node_modules/wrangler/config-schema.json",
   "name": "pulsestrategyofficial",
   "compatibility_date": "2026-07-21",
+  "observability": {
+    "enabled": true
+  },
   "assets": {
-    "directory": ".",
-    "not_found_handling": "single-page-application"
-  }
+    "directory": "."
+  },
+  "compatibility_flags": [
+    "nodejs_compat"
+  ]
 }
