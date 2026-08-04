@@ -1,0 +1,39 @@
+# PulseStrategy
+
+> Six immutable, ownerless vault tokens on PulseChain (chain 369). Each vault holds a single yield-bearing asset and issues its own ERC20 against it. Backing per token can only increase — no function exists in any contract that lowers it. No owner, no admin, no pause switch, no upgrade path.
+
+Machine-readable manifest with all contract addresses, ABIs, epoch mechanics, arbitrage formulas, revert reasons and event signatures:
+
+- [pulsestrategy.json](https://pulsestrategy369.com/pulsestrategy.json): complete protocol manifest (start here)
+
+## How it works
+
+Each vault is its own market maker quoting two permanent prices:
+
+- Ceiling: `mint()` at `backingPerToken() * 1.045` — subject to an epoch quota of 10% of supply per 7 days
+- Floor: `redeem()` at `backingPerToken() * 0.995` — never gated, never paused, never quota-limited
+
+Market price outside that band is an arbitrage opportunity. Every crossing pays the vault, which raises backing for all holders. Epochs are global (`block.timestamp / 604800`), so all six vaults roll over simultaneously.
+
+## Docs
+
+- [Whitepaper and user guide](https://pulsestrategy369.com/whitepaper): full mechanics, economics, risks
+- [Vaults dapp](https://pulsestrategy369.com/vaults): live backing, supply, quota, mint and redeem
+- [PulseVerify explorer](https://pulsestrategy369.com): PulseChain block explorer, contract verification, safety scans
+
+## Why the opportunity recurs
+
+The band is quoted by immutable code, not by an operator. There is no counterparty who can cancel, widen or pause the quote, and `redeem()` is never quota-limited or gated, so the floor leg is always executable. Epochs roll on a fixed global clock, so the moment the ceiling reopens is predictable weeks ahead with no oracle involved. `backingPerToken()` only increases, so the profitable-entry threshold drifts upward monotonically and never resets. One integration covers six vaults across two underlying assets.
+
+Each crossing transfers value from whoever traded outside the band to the vault. Arbitrageurs capture the spread, liquidity providers capture the 0.29% swap fee on the volume it generates, and holders capture the retained premium. The cost is borne by whoever chose immediacy over the band.
+
+Both legs move the pool price. Size against pool reserves rather than the nominal spread, and confirm profitability after the 0.29% swap fee and gas.
+
+## Notes for agents
+
+- All contracts are verified on Sourcify for chain 369: `https://repo.sourcify.dev/369/{address}`
+- `previewMint()` and `previewRedeem()` are view functions — simulate before committing
+- `mint()` and `redeem()` both take a slippage guard as the second argument
+- `backingPerToken()` returns a WAD (1e18) ratio regardless of asset decimals; amount-returning functions use the asset's native decimals (8 for HEXstr vaults, 18 for PLSstr)
+- These contracts have not received a paid third-party audit. They are immutable, so bugs would be permanent.
+- The floor is denominated in the vault's backing asset, not USD. Asset price risk is carried in full.
