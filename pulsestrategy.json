@@ -1,0 +1,357 @@
+{
+  "name": "PulseStrategy",
+  "version": "1.5.0",
+  "updated": "2026-08-02",
+  "description": "A family of immutable, ownerless vault tokens on PulseChain. Each vault holds a single yield-bearing asset and issues its own ERC20 against it. Backing per token can only increase; no function exists that decreases it.",
+  "website": "https://pulsestrategy369.com",
+  "whitepaper": "https://pulsestrategy369.com/whitepaper",
+  "x": "https://x.com/pulsestrategy",
+  "chain": {
+    "name": "PulseChain",
+    "chainId": 369,
+    "rpc": [
+      "https://pulsechain-rpc.publicnode.com",
+      "https://rpc.pulsechain.com"
+    ],
+    "explorer": "https://otter.pulsechain.com",
+    "blockTimeSec": 10
+  },
+  "economics": {
+    "mintPremiumBps": 450,
+    "protocolFeeBps": 50,
+    "redeemFeeBps": 50,
+    "epochLengthSeconds": 604800,
+    "epochQuotaBps": 1000,
+    "notes": [
+      "A minter pays backing x 1.045. Of that 4.5%, 4.0 points remain in the vault and 0.5 points transfer to the protocol fee address. The minter's price is unaffected by the split.",
+      "A redeemer receives pro-rata assets minus 0.5%, which remains in the vault for remaining holders.",
+      "Redeeming 100% of outstanding supply waives the redemption fee entirely (last-redeemer waiver).",
+      "Each 7-day epoch allows minting of at most 10% of the supply that existed at the epoch's first mint. Epochs are global: epoch = block.timestamp / 604800, so all vaults roll over simultaneously.",
+      "While totalSupply == 0 the epoch quota is unlimited (genesis). This persists across epoch boundaries until the first mint occurs.",
+      "Redemption is never quota-limited, paused, or gated."
+    ]
+  },
+  "arbitrage": {
+    "description": "Each vault is its own market maker quoting two permanent prices. Market price outside this band is a risk-free trade.",
+    "ceiling": "backingPerToken() * 1.045  \u2014 the cost to mint new supply from the contract (subject to epoch quota)",
+    "floor": "backingPerToken() * 0.995  \u2014 the amount redeemable from the contract (never limited)",
+    "opportunities": [
+      {
+        "condition": "DEX price > backingPerToken() * 1.045",
+        "action": "mint from the vault contract, sell into the DEX pool",
+        "constraint": "requires mintQuotaRemaining() > 0"
+      },
+      {
+        "condition": "DEX price < backingPerToken() * 0.995",
+        "action": "buy from the DEX pool, redeem at the vault contract",
+        "constraint": "none \u2014 redemption is always open"
+      }
+    ],
+    "notes": [
+      "backingPerToken() returns a WAD (1e18-scaled) ratio regardless of the asset's decimals, because vault tokens mirror the asset's decimals.",
+      "Amount-returning functions (vaultBalance, previewMint, previewRedeem, mintQuotaRemaining) are denominated in the asset's native decimals.",
+      "timeToNextEpoch() returns seconds until the quota refills \u2014 the most contested moment of each epoch.",
+      "Both mint() and redeem() accept a slippage guard as their second argument."
+    ],
+    "computation": {
+      "notation": "B = backingPerToken() / 1e18 (assets per vault token). P = DEX price of the vault token in the same asset. F = 0.0029 (PulseX 0.29% swap fee).",
+      "ceilingArb": "Profitable when P * 0.9971 > B * 1.045, i.e. P > B * 1.048038. Steps: approve asset to the vault -> mint(assetIn, minTokensOut) -> sell tokens into the pool via PulseXRouter02. Bounded by mintQuotaRemaining().",
+      "floorArb": "Profitable when P / 0.9971 < B * 0.995, i.e. P < B * 0.992115. Steps: buy tokens from the pool via PulseXRouter02 -> redeem(tokenAmount, minAssetOut). Never quota-bounded.",
+      "sizing": "Both legs move the pool price, so size against pool reserves, not just the spread. Simulate the swap output and call previewMint/previewRedeem in the same block before committing.",
+      "gasNote": "PulseChain gas is cheap but nonzero; subtract it from expected profit. Thin pools mean slippage usually binds before the quota does.",
+      "netBand": "Accounting for the 0.29% swap fee, the no-arb band is approximately B * 0.9921 to B * 1.0480 \u2014 about 5.6% wide. Inside it, no risk-free trade exists."
+    }
+  },
+  "interface": {
+    "abiSource": "Verified on Sourcify for chain 369; fetch at https://repo.sourcify.dev/369/{vaultAddress}",
+    "read": [
+      "backingPerToken() view returns (uint256)  \u2014 WAD-scaled assets per vault token",
+      "vaultBalance() view returns (uint256)  \u2014 assets held, in asset decimals",
+      "totalSupply() view returns (uint256)",
+      "previewMint(uint256 assetIn) view returns (uint256 tokensOut)",
+      "previewRedeem(uint256 tokenAmount) view returns (uint256 assetOut, uint256 assetFee)",
+      "mintQuotaRemaining() view returns (uint256)",
+      "timeToNextEpoch() view returns (uint256)",
+      "totalProtocolFees() view returns (uint256)"
+    ],
+    "write": [
+      "mint(uint256 assetIn, uint256 minTokensOut) returns (uint256)  \u2014 requires prior ERC20 approval of the asset to the vault",
+      "redeem(uint256 tokenAmount, uint256 minAssetOut) returns (uint256)  \u2014 no approval needed"
+    ]
+  },
+  "vaults": [
+    {
+      "symbol": "PLSstr",
+      "name": "PulseStrategy",
+      "address": "0x71ff5C9C9938E39E819246ef939FFb5Fd228922d",
+      "decimals": 18,
+      "asset": {
+        "symbol": "vPLS",
+        "name": "Vouch liquid staked PLS",
+        "address": "0x79BB3A0Ee435f957ce4f54eE8c3CFADc7278da0C",
+        "decimals": 18
+      },
+      "term": "perpetual",
+      "yieldNote": "vPLS is value-accruing: the vault's vPLS balance does not grow, but each vPLS becomes redeemable for more PLS over time as Vouch validators earn staking rewards.",
+      "pools": [
+        {
+          "pair": "PLSstr/WPLS",
+          "dex": "PulseX v2",
+          "address": "0x38b204b4f9c38a5115186b1E20d55884a97ed1de"
+        }
+      ],
+      "sourcify": "https://repo.sourcify.dev/369/0x71ff5C9C9938E39E819246ef939FFb5Fd228922d",
+      "explorer": "https://otter.pulsechain.com/address/0x71ff5C9C9938E39E819246ef939FFb5Fd228922d"
+    },
+    {
+      "symbol": "HEXstr-7000",
+      "name": "HEXStrategy-7000",
+      "address": "0x9DeE9ee99228931AE9bF579407ff3608aFe231D3",
+      "decimals": 8,
+      "asset": {
+        "symbol": "HTT-7000",
+        "name": "Actuator Finance staked-HEX claim, day 7000",
+        "address": "0x47810bb3ECDc6b080CeB2d39E769F21Ff14AB7E9",
+        "decimals": 8
+      },
+      "term": "dated",
+      "redemptionDay": "2039-01-31",
+      "yieldNote": "HTT trades at a discount to HEX that closes as its redemption day approaches, redeeming 1:1 for HEX at maturity.",
+      "windDown": "The vault cannot call Actuator's redemption. Holders must exit in two steps: redeem HEXstr at the vault for HTT, then redeem HTT at Actuator Finance for HEX, at or before the redemption day.",
+      "pools": [
+        {
+          "pair": "HEXstr-7000/HEX",
+          "dex": "PulseX v2",
+          "address": "0x6F5a5387dd6aDAf5fE5A0340144162785fd6AC7F"
+        }
+      ],
+      "sourcify": "https://repo.sourcify.dev/369/0x9DeE9ee99228931AE9bF579407ff3608aFe231D3",
+      "explorer": "https://otter.pulsechain.com/address/0x9DeE9ee99228931AE9bF579407ff3608aFe231D3"
+    },
+    {
+      "symbol": "HEXstr-6000",
+      "name": "HEXStrategy-6000",
+      "address": "0x369206C9566F9982Ba14fd86897D512b6dBC6602",
+      "decimals": 8,
+      "asset": {
+        "symbol": "HTT-6000",
+        "name": "Actuator Finance staked-HEX claim, day 6000",
+        "address": "0xcdBFaf528c7CeA55d0AEbdB93C218D6f23B24af3",
+        "decimals": 8
+      },
+      "term": "dated",
+      "redemptionDay": "2036-05-06",
+      "yieldNote": "HTT trades at a discount to HEX that closes as its redemption day approaches, redeeming 1:1 for HEX at maturity.",
+      "windDown": "The vault cannot call Actuator's redemption. Holders must exit in two steps: redeem HEXstr at the vault for HTT, then redeem HTT at Actuator Finance for HEX, at or before the redemption day.",
+      "pools": [
+        {
+          "pair": "HEXstr-6000/HEX",
+          "dex": "PulseX v2",
+          "address": "0x09a48d046aF49b4D5152838C2623769Ef1787a18"
+        }
+      ],
+      "sourcify": "https://repo.sourcify.dev/369/0x369206C9566F9982Ba14fd86897D512b6dBC6602",
+      "explorer": "https://otter.pulsechain.com/address/0x369206C9566F9982Ba14fd86897D512b6dBC6602"
+    },
+    {
+      "symbol": "HEXstr-5000",
+      "name": "HEXStrategy-5000",
+      "address": "0xa82d3b19929f412A72B5711d97b302d40B14f4F4",
+      "decimals": 8,
+      "asset": {
+        "symbol": "HTT-5000",
+        "name": "Actuator Finance staked-HEX claim, day 5000",
+        "address": "0xE2D03779147A32064511dd2b9D37F66f3EeFAd7C",
+        "decimals": 8
+      },
+      "term": "dated",
+      "redemptionDay": "2033-08-10",
+      "yieldNote": "HTT trades at a discount to HEX that closes as its redemption day approaches, redeeming 1:1 for HEX at maturity.",
+      "windDown": "The vault cannot call Actuator's redemption. Holders must exit in two steps: redeem HEXstr at the vault for HTT, then redeem HTT at Actuator Finance for HEX, at or before the redemption day.",
+      "pools": [
+        {
+          "pair": "HEXstr-5000/HEX",
+          "dex": "PulseX v2",
+          "address": "0xb34f93d1AaAA5E28bcf2379fdF1852773F469701"
+        }
+      ],
+      "sourcify": "https://repo.sourcify.dev/369/0xa82d3b19929f412A72B5711d97b302d40B14f4F4",
+      "explorer": "https://otter.pulsechain.com/address/0xa82d3b19929f412A72B5711d97b302d40B14f4F4"
+    },
+    {
+      "symbol": "HEXstr-4000",
+      "name": "HEXStrategy-4000",
+      "address": "0x26E1C36F8fcd4fFD6cBf047E91be8E5E8829f61e",
+      "decimals": 8,
+      "asset": {
+        "symbol": "HTT-4000",
+        "name": "Actuator Finance staked-HEX claim, day 4000",
+        "address": "0x3Cf372aA6aAa46eDc4B8da86294deC0DDecED632",
+        "decimals": 8
+      },
+      "term": "dated",
+      "redemptionDay": "2030-11-14",
+      "yieldNote": "HTT trades at a discount to HEX that closes as its redemption day approaches, redeeming 1:1 for HEX at maturity.",
+      "windDown": "The vault cannot call Actuator's redemption. Holders must exit in two steps: redeem HEXstr at the vault for HTT, then redeem HTT at Actuator Finance for HEX, at or before the redemption day.",
+      "pools": [
+        {
+          "pair": "HEXstr-4000/HEX",
+          "dex": "PulseX v2",
+          "address": "0xD1cF5CA96788674C478Ba6C94f5297346910FFc4"
+        }
+      ],
+      "sourcify": "https://repo.sourcify.dev/369/0x26E1C36F8fcd4fFD6cBf047E91be8E5E8829f61e",
+      "explorer": "https://otter.pulsechain.com/address/0x26E1C36F8fcd4fFD6cBf047E91be8E5E8829f61e"
+    },
+    {
+      "symbol": "HEXstr-3000",
+      "name": "HEXStrategy-3000",
+      "address": "0xd992b901474715accB07C5e933EDb8992715b4c2",
+      "decimals": 8,
+      "asset": {
+        "symbol": "HTT-3000",
+        "name": "Actuator Finance staked-HEX claim, day 3000",
+        "address": "0xE9E1340A2b31d5D2a2dB28FB854a794E106b430a",
+        "decimals": 8
+      },
+      "term": "dated",
+      "redemptionDay": "2028-02-18",
+      "yieldNote": "HTT trades at a discount to HEX that closes as its redemption day approaches, redeeming 1:1 for HEX at maturity.",
+      "windDown": "The vault cannot call Actuator's redemption. Holders must exit in two steps: redeem HEXstr at the vault for HTT, then redeem HTT at Actuator Finance for HEX, at or before the redemption day.",
+      "pools": [
+        {
+          "pair": "HEXstr-3000/HEX",
+          "dex": "PulseX v2",
+          "address": "0x8126066BdFe45d456735f7193F022B448BE67776"
+        }
+      ],
+      "sourcify": "https://repo.sourcify.dev/369/0xd992b901474715accB07C5e933EDb8992715b4c2",
+      "explorer": "https://otter.pulsechain.com/address/0xd992b901474715accB07C5e933EDb8992715b4c2"
+    }
+  ],
+  "protocolFeeAddress": "0x3E5a5764EBd24d8142638366d4c5674D86c2EC64",
+  "guarantees": [
+    "No owner, no admin role, no pause switch, no upgrade path, no proxy.",
+    "Backing per token never decreases from any operation of these contracts.",
+    "100% of supply is minted publicly through one formula. No pre-mine, no team allocation, no emissions.",
+    "No transfer tax. Vault tokens are plain, fully composable ERC20s.",
+    "Redemption is always available."
+  ],
+  "risks": [
+    "These contracts have not received a paid third-party audit. They are immutable, so a bug would be permanent.",
+    "The floor is denominated in the vault's asset (vPLS or HTT), not in USD. Asset price risk is carried in full by the holder.",
+    "Each vault inherits the risk of its backing asset's issuing protocol: Vouch for PLSstr; HEX, Hedron/HSIs and Actuator Finance for HEXstr.",
+    "A round trip costs approximately 5% (4.5% mint premium plus 0.5% redemption fee).",
+    "HEXstr vaults are dated. Holders must complete a two-step exit at or before the redemption day.",
+    "Market price is not guaranteed and may sit at the floor indefinitely."
+  ],
+  "manifest": "https://pulsestrategy369.com/pulsestrategy.json",
+  "errors": [
+    {
+      "signature": "MintQuotaExceeded(uint256 remainingQuota)",
+      "meaning": "The epoch mint quota is exhausted or your amount exceeds what remains. The error returns the remaining quota in vault-token units. Wait for timeToNextEpoch() or buy on the DEX instead."
+    },
+    {
+      "signature": "SlippageExceeded()",
+      "meaning": "Output fell below your minTokensOut / minAssetOut guard, usually because backing moved between simulation and inclusion. Re-simulate with previewMint/previewRedeem and retry."
+    },
+    {
+      "signature": "ZeroTokensOut()",
+      "meaning": "The deposit was too small to mint a single unit at current backing. Increase the amount."
+    },
+    {
+      "signature": "ZeroAmount()",
+      "meaning": "Input was zero, or the asset transfer delivered nothing."
+    },
+    {
+      "signature": "InsufficientBalance()",
+      "meaning": "You hold fewer vault tokens than you tried to redeem."
+    }
+  ],
+  "events": [
+    {
+      "signature": "Minted(address indexed minter, uint256 assetIn, uint256 tokensOut, uint256 newBackingPerToken)",
+      "use": "Detect mints and the resulting backing. newBackingPerToken is WAD-scaled."
+    },
+    {
+      "signature": "Redeemed(address indexed redeemer, uint256 tokensBurned, uint256 assetOut, uint256 assetFeeRetained, uint256 newBackingPerToken)",
+      "use": "Detect exits and the fee left behind."
+    },
+    {
+      "signature": "EpochRolled(uint256 indexed epoch, uint256 quota)",
+      "use": "Fires on the first mint of a new epoch, carrying that epoch's quota. The most contested moment of the week."
+    },
+    {
+      "signature": "ProtocolFeePaid(address indexed recipient, uint256 amount)",
+      "use": "Audit the protocol fee. Cumulative total is also readable via totalProtocolFees()."
+    }
+  ],
+  "workedExample": {
+    "description": "Genesis mint into an empty vault, to validate an implementation.",
+    "assetIn": 104.5,
+    "tokensOut": 100.0,
+    "protocolFeeOut": 0.5,
+    "vaultBalanceAfter": 104.0,
+    "backingPerTokenAfter": 1.04,
+    "note": "tokensOut = assetIn * 10000 / 10450. protocolFee = assetIn * 50 / 10450. The vault retains a net 4.0%, so every mint raises backing."
+  },
+  "dex": {
+    "name": "PulseX",
+    "pairType": "UniswapV2-compatible",
+    "wpls": "0xA1077a294dDE1B09bB078844df40758a5D0f9a27",
+    "factories": [
+      {
+        "name": "PulseX v1",
+        "address": "0x1715a3E4A142d8b698131108995174F37aEBA10D"
+      },
+      {
+        "name": "PulseX v2",
+        "address": "0x29eA7545DEf87022BAdc76323F373EA1e707C523"
+      }
+    ],
+    "router": "0x165C3410fC91EF562C50559f7d2289fEbed552d9",
+    "note": "All PulseStrategy pools listed below are PulseX v2 pairs. Pair reserves are readable via getReserves(); price = reserve_asset / reserve_vaultToken, adjusted for each token's decimals. Swaps route through PulseXRouter02 at a 0.29% fee. Always verify addresses on-chain before submitting transactions.",
+    "routerName": "PulseXRouter02",
+    "swapFeeBps": 29,
+    "swapFee": "0.29% per swap (0.0029)"
+  },
+  "opportunityProfile": {
+    "summary": "The arbitrage here is contract-enforced and recurring rather than discretionary and one-off. Both sides of the band are quoted by immutable code with no counterparty, no operator, and no ability to withdraw quotes.",
+    "properties": [
+      {
+        "property": "Recurring on a fixed schedule",
+        "detail": "Epochs roll every 604800 seconds on a global clock (block.timestamp / 604800). All six vaults roll simultaneously. Epoch open is the moment the ceiling reopens and is the most contested window each week \u2014 it is predictable weeks in advance, with no oracle or operator involved."
+      },
+      {
+        "property": "The quote cannot be withdrawn",
+        "detail": "Unlike a market maker's bid, mint() and redeem() are the contract itself. There is no operator who can cancel, widen, or pause the quote. redeem() in particular is never quota-limited, paused, or gated, so the floor leg is always executable."
+      },
+      {
+        "property": "Immutable counterparty",
+        "detail": "No owner, no admin, no upgrade path, no proxy. A strategy written against these contracts does not need re-auditing after an upgrade, because upgrades are impossible. Contract risk is fixed at integration time rather than ongoing."
+      },
+      {
+        "property": "Deterministic simulation",
+        "detail": "previewMint() and previewRedeem() are pure view functions over on-chain state. Expected output can be computed exactly in the same block as execution, with slippage guards on both write functions."
+      },
+      {
+        "property": "Threshold moves in one direction",
+        "detail": "backingPerToken() can only increase. The profitable-entry threshold therefore drifts upward monotonically over time; it never resets downward. Strategies can cache the direction of drift."
+      },
+      {
+        "property": "One integration covers six markets",
+        "detail": "All six vaults share one codebase and one ABI, differing only in backing asset and decimals (8 for HEXstr, 18 for PLSstr). A single integration yields six independent band positions across two underlying assets (staked PLS and staked HEX at five maturities)."
+      },
+      {
+        "property": "No token-level friction",
+        "detail": "Vault tokens are plain ERC20s with no transfer tax, no rebasing and no blocklist, so transfers cost exactly what they appear to cost and pool accounting is unsurprising."
+      },
+      {
+        "property": "Two-sided flow",
+        "detail": "Because the vault pays on both crossings, activity in either direction feeds it. Volatility in the backing asset produces band crossings without requiring directional conviction."
+      }
+    ],
+    "systemEffect": "Each crossing transfers value from whoever traded outside the band to the vault, which raises backing for all holders. Arbitrageurs capture the spread, liquidity providers capture the 0.29% swap fee on the volume this generates, and holders capture the retained premium. None of these participants needs another to lose: the cost is borne by whoever chose immediacy over the band.",
+    "sizingNote": "Both legs move the pool price. Size against pool reserves rather than the nominal spread, and confirm profitability after the 0.29% swap fee and gas before committing."
+  }
+}
