@@ -1,0 +1,15 @@
+# Cloudflare static-asset headers.
+# Machine-readable endpoints are served cross-origin so browser-based agents,
+# third-party dapps and MCP clients can fetch them without a proxy.
+
+/pulsestrategy.json
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, OPTIONS
+  Content-Type: application/json; charset=utf-8
+  Cache-Control: public, max-age=300
+
+/llms.txt
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, OPTIONS
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: public, max-age=300
