@@ -1,0 +1,3231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PulseStrategy Vaults · the floor only rises</title>
+<meta name="description" content="Immutable, ownerless vault tokens. Backing per token only ratchets upward — no admin keys, no pause switch, redemption never gated.">
+<meta name="theme-color" content="#050507">
+<link rel="icon" id="favicon" type="image/png" href="">
+<link rel="alternate" type="application/json" href="https://pulsestrategy369.com/pulsestrategy.json" title="PulseStrategy protocol manifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Michroma&family=Space+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* ── Color theme: change these six values to re-skin the whole page
+     (e.g. Coffer gold: --pulse:#D9A94E; --pulse-deep:#8a6a2e; --violet:#7BA7E8) ── */
+  --ink:#050507; --panel:#111118; --panel2:#181822; --line:#262633;
+  --pulse:#4E8FD9;      /* logo blue — primary */
+  --pulse-deep:#1E3A6E; /* logo navy — gradient partner */
+  --violet:#8C4238;     /* logo rust — secondary */
+  --violet-deep:#54395F;/* logo violet — gradient partner */
+  --mint:#7FB3E8;       /* positive / ratchet glow (light logo blue) */
+  --text:#F2F3F6; --mut:#9398A8; --danger:#FF6B5A;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{
+  background:var(--ink);color:var(--text);
+  font-family:'Space Grotesk',system-ui,sans-serif;line-height:1.5;
+  background-image:
+    radial-gradient(ellipse 90% 45% at 60% -8%,rgba(78,143,217,.16),transparent),
+    radial-gradient(ellipse 60% 30% at 10% 4%,rgba(120,63,88,.10),transparent);
+}
+.wrap{max-width:560px;margin:0 auto;padding:0 20px 72px}
+a{color:var(--violet);text-decoration:none}
+a:hover{text-decoration:underline}
+h2{font-family:'Michroma';font-weight:400;font-size:15px;letter-spacing:.05em;margin:44px 0 16px;text-transform:uppercase}
+h2 small{display:block;font-family:'Space Grotesk';font-weight:400;font-size:12px;letter-spacing:0;text-transform:none;color:var(--mut);margin-top:4px}
+
+/* header */
+header{display:flex;justify-content:space-between;align-items:center;padding:20px 0 30px;position:sticky;top:0;background:linear-gradient(var(--ink) 75%,transparent);z-index:5}
+.brand{display:flex;align-items:center;gap:10px}
+.brand svg{width:30px;height:30px;flex:none}
+.brand .name{font-family:'Michroma';font-weight:400;font-size:12.5px;letter-spacing:.14em}
+.brand .tick{font-size:10px;color:var(--mut);letter-spacing:.16em}
+#connectBtn{
+  font-family:'Space Grotesk';font-weight:600;font-size:13px;
+  background:var(--panel);color:var(--text);border:1px solid var(--line);
+  border-radius:99px;padding:10px 18px;cursor:pointer;transition:border-color .15s;
+}
+#connectBtn:hover,#connectBtn:focus-visible{border-color:var(--pulse)}
+#connectBtn.connected{border-color:var(--mint);color:var(--mint)}
+
+/* trust strip */
+.trust{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:34px}
+.chip{font-size:11px;letter-spacing:.06em;color:var(--mut);border:1px solid var(--line);border-radius:99px;padding:6px 12px;background:rgba(20,16,32,.6)}
+.chipbtn{font-family:'Space Grotesk';cursor:pointer;transition:border-color .15s,color .15s}
+.chipbtn:hover,.chipbtn:focus-visible{border-color:var(--pulse);color:var(--text)}
+.mktrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;margin-top:14px}
+.mktrow .chip{white-space:nowrap}
+.chip.prem{color:var(--gold,#D9A94E);border-color:rgba(217,169,78,.45)}
+.chip.disc{color:var(--mint);border-color:rgba(127,179,232,.45)}
+.backdelta{font-family:'IBM Plex Mono';font-size:13px;color:var(--mint);margin-top:-6px;letter-spacing:.02em}
+.chip.on{color:var(--mint);border-color:rgba(127,179,232,.40)}
+.sr-only{position:absolute;left:-9999px}
+.rpcsel{font-family:'IBM Plex Mono';font-size:11px;background:var(--panel);color:var(--mut);
+  border:1px solid var(--line);border-radius:11px;padding:10px 12px;cursor:pointer;
+  max-width:190px;transition:border-color .15s,color .15s}
+.rpcsel:hover,.rpcsel:focus-visible{border-color:var(--pulse);color:var(--text)}
+.rpcsel.custom{border-color:rgba(127,179,232,.45);color:var(--mint)}
+
+.vouch-box{margin:28px 0 8px;padding:18px 16px 16px;background:var(--panel);border:1px solid var(--line);border-radius:22px}
+.vouch-box h3{font-family:'Michroma';font-weight:400;font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px}
+.vouch-box p{font-size:13px;color:var(--mut);line-height:1.55;margin:0 0 14px}
+.vouch-box iframe{width:100%;max-width:420px;height:500px;border:0;border-radius:30px;display:block;margin:0 auto;background:#0b0b10}
+.vouch-box .vouch-off{font-size:12px;color:var(--mut);text-align:center;padding:18px 8px}
+.hsi-head{font-family:'Michroma';font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin:18px 0 10px;color:var(--text)}
+.hsi-list{display:flex;flex-direction:column;gap:10px}
+.hsi-card{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:14px}
+.hsi-card .row{display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:13px;color:var(--mut)}
+.hsi-card .row span:last-child{font-family:'IBM Plex Mono';color:var(--text);text-align:right}
+.hsi-card .addr{font-family:'IBM Plex Mono';font-size:11px;word-break:break-all;color:var(--mut);margin-top:6px}
+.hsi-card .mintrow{display:flex;gap:8px;margin-top:10px}
+.hsi-card .mintrow input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'IBM Plex Mono';font-size:14px;padding:10px 12px}
+.hsi-card button{font-family:'Michroma';font-size:11px;letter-spacing:.04em;padding:12px 14px;border:none;border-radius:11px;cursor:pointer;background:linear-gradient(135deg,#6FA8DC,var(--pulse) 45%,var(--pulse-deep));color:#fff;white-space:nowrap}
+.hsi-card button:disabled{opacity:.4;cursor:not-allowed}
+.hsi-card .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.hsi-card .acts button.ghost{background:var(--panel);border:1px solid var(--line);color:var(--text)}
+.hsi-card .acts button.warn{background:linear-gradient(135deg,#A34A38,var(--violet) 45%,var(--violet-deep))}
+.hsi-empty{font-size:13px;color:var(--mut);padding:8px 2px}
+.rec-card{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:14px 14px 12px;margin:0 0 14px}
+.rec-card .rec-k{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mint);margin-bottom:6px}
+.rec-card .rec-t{font-size:15px;font-weight:600;margin-bottom:6px}
+.rec-card .rec-d{font-size:13px;color:var(--mut);line-height:1.5}
+.route{width:100%;border-collapse:collapse;font-size:13px;margin:0 0 14px}
+.route th,.route td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);color:var(--mut)}
+.route td:last-child,.route th:last-child{text-align:right;font-family:'IBM Plex Mono';color:var(--text)}
+.route tr.pick td{color:var(--mint)}
+.row-btns{display:flex;gap:8px;margin:4px 0 8px}
+.row-btns .action{flex:1;padding:14px 0;font-size:12px}
+.row-btns .ghost{background:var(--panel2);border:1px solid var(--line);color:var(--text)}
+.claim-banner{background:rgba(127,179,232,.08);border:1px solid rgba(127,179,232,.35);border-radius:14px;padding:14px;margin:0 0 14px}
+.claim-banner b{color:var(--mint)}
+.swap-note{font-size:12px;color:var(--mut);margin:8px 2px 0;line-height:1.5}
+.pos-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:0 0 14px}
+.pos-grid .stat{background:var(--panel2)}
+.paysel{
+  appearance:none;-webkit-appearance:none;
+  background:transparent url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'><path fill='%239398A8' d='M0 0l4 6 4-6z'/></svg>") no-repeat right 2px center;
+  border:none;color:var(--mut);font-family:'IBM Plex Mono',monospace;font-size:13px;
+  padding:4px 14px 4px 4px;cursor:pointer;min-width:52px;
+}
+.paysel:focus{outline:none;color:var(--text)}
+.paysel option{background:var(--panel);color:var(--text)}
+.adv-note{font-size:12px;color:var(--mut);line-height:1.55;margin:0 0 14px;padding:10px 12px;background:var(--panel2);border-radius:12px;border:1px dashed var(--line)}
+
+
+/* signature: the ratchet */
+.ratchet{margin-bottom:38px}
+.eyebrow{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--mut);margin-bottom:10px}
+.backing{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:clamp(46px,13vw,68px);line-height:1;font-variant-numeric:tabular-nums}
+.backing .unit{font-size:.32em;font-weight:500;color:var(--mut);margin-left:.4em}
+.rail{position:relative;height:28px;margin-top:18px;overflow:hidden;border-radius:5px}
+.rail .teeth{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,var(--line) 0 2px,transparent 2px 14px)}
+.rail .trail{position:absolute;top:0;bottom:0;left:0;width:0;background:linear-gradient(90deg,transparent,rgba(127,179,232,.28));transition:width 1.4s cubic-bezier(.22,1,.36,1)}
+.rail .pawl{position:absolute;top:0;bottom:0;width:3px;background:var(--mint);box-shadow:0 0 14px var(--mint),0 0 3px var(--mint);left:0;transition:left 1.4s cubic-bezier(.22,1,.36,1)}
+.rail-note{font-size:12.5px;color:var(--mut);margin-top:10px;max-width:46ch}
+.rail-note b{color:var(--mint);font-weight:600}
+@media (prefers-reduced-motion:reduce){.rail .pawl,.rail .trail{transition:none}}
+
+/* stats */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-bottom:22px}
+.stat{background:var(--panel);padding:16px 18px}
+.stat .k{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut);margin-bottom:7px}
+.stat .v{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:500;font-variant-numeric:tabular-nums}
+
+.epoch{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px dashed var(--line);border-radius:14px;padding:13px 18px;margin-bottom:34px;font-size:13px;color:var(--mut)}
+.epoch b{font-family:'IBM Plex Mono';color:var(--text);font-weight:500;white-space:nowrap}
+
+/* action card */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 24px 60px -30px rgba(0,0,0,.7)}
+.tabs{display:flex;gap:6px;margin-bottom:18px}
+.tab{flex:1;font-family:'Michroma';font-weight:400;font-size:12px;letter-spacing:.05em;padding:12px 0;border-radius:11px;border:1px solid transparent;background:transparent;color:var(--mut);cursor:pointer}
+.tab[aria-selected="true"]{background:var(--panel2);color:var(--text);border-color:var(--line)}
+.field{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:15px;margin-bottom:12px;transition:border-color .15s}
+.field:focus-within{border-color:var(--violet)}
+.field label{display:block;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut);margin-bottom:9px}
+.amt-row{display:flex;align-items:center;gap:10px}
+.amt-row input{flex:1;min-width:0;background:transparent;border:none;outline:none;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:23px;font-weight:500}
+.amt-row .sym{font-family:'IBM Plex Mono';font-size:13px;color:var(--mut)}
+.maxbtn{background:transparent;border:1px solid var(--line);color:var(--violet);border-radius:8px;font-size:11px;font-weight:600;padding:6px 10px;cursor:pointer}
+.bal{font-size:12px;color:var(--mut);margin-top:9px}
+.preview{padding:6px 2px 15px;font-size:13px;color:var(--mut)}
+.preview .row{display:flex;justify-content:space-between;padding:5px 0}
+.preview .row span:last-child{font-family:'IBM Plex Mono';color:var(--text)}
+.preview .row.fee span:last-child{color:var(--mut)}
+.action{width:100%;font-family:'Michroma';font-weight:400;font-size:14px;letter-spacing:.03em;padding:17px 0;border:none;border-radius:13px;cursor:pointer;background:linear-gradient(135deg,#6FA8DC,var(--pulse) 45%,var(--pulse-deep));color:#fff;transition:filter .15s,opacity .15s}
+.action:hover:not(:disabled){filter:brightness(1.12)}
+.action:disabled{opacity:.4;cursor:not-allowed}
+.action.approve{background:linear-gradient(135deg,#A34A38,var(--violet) 45%,var(--violet-deep))}
+.status{margin-top:13px;font-size:13px;min-height:18px;text-align:center;color:var(--mut);word-break:break-word}
+.status.ok{color:var(--mint)} .status.err{color:var(--danger)}
+
+/* how it works */
+.how{display:grid;gap:10px}
+.how .step{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.how .step h3{font-family:'Michroma';font-size:12px;font-weight:600;letter-spacing:.06em;margin-bottom:6px}
+.how .step h3 span{color:var(--pulse)}
+.how .step p{font-size:13px;color:var(--mut)}
+.how .step p b{color:var(--text);font-weight:600}
+
+/* disclosures */
+.disc{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;font-size:13px;color:var(--mut);line-height:1.65}
+.disc p+p{margin-top:10px}
+.disc b{color:var(--text);font-weight:600}
+
+.hdr-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;position:relative}
+.wmenu{position:absolute;top:calc(100% + 6px);right:0;background:var(--panel2);border:1px solid var(--line);
+  border-radius:10px;padding:6px;z-index:60;display:flex;flex-direction:column;gap:4px;box-shadow:0 8px 24px rgba(0,0,0,.6)}
+.wmenu button{background:none;border:none;color:var(--text);font-family:'Space Grotesk';font-size:13px;
+  padding:9px 12px;border-radius:7px;text-align:left;white-space:nowrap;cursor:pointer}
+.wmenu button:hover{background:var(--panel)}
+.wmenu button.dis{color:#FF6B5A}
+.navtab{font-family:'Michroma';font-size:11px;letter-spacing:.04em;padding:10px 14px;border-radius:11px;border:1px solid var(--line);background:var(--panel);color:var(--mut);text-decoration:none;display:inline-flex;align-items:center;white-space:nowrap}
+.navtab:hover{border-color:var(--pulse);color:var(--text);text-decoration:none}
+.dl-cta{display:inline-block;padding:12px 22px;border:1px solid rgba(127,179,232,.5);border-radius:11px;background:rgba(78,143,217,.12);color:var(--mint) !important;font-family:'Michroma';font-size:13px;letter-spacing:.04em;margin-top:4px}
+.dl-cta:hover{background:rgba(78,143,217,.22);text-decoration:none}
+.dlnote{margin-top:12px;text-align:left;max-width:680px;margin-left:auto;margin-right:auto;
+  padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:12px;line-height:1.6;opacity:.9}
+.dlnote b{color:var(--text)}
+.hashline{margin:12px auto;max-width:680px;color:var(--mut)}
+.hashline span{font-family:'IBM Plex Mono';word-break:break-all;color:var(--mint);font-size:12px}
+footer{font-size:12px;color:var(--mut);line-height:1.8;border-top:1px solid var(--line);padding-top:20px;margin-top:44px;text-align:center}
+.mono{font-family:'IBM Plex Mono';font-size:11px;word-break:break-all}
+
+/* connect sheet */
+.sheet-back{position:fixed;inset:0;background:rgba(6,4,12,.7);backdrop-filter:blur(3px);display:none;z-index:20}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-width:560px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-bottom:none;border-radius:20px 20px 0 0;padding:22px 20px 34px;z-index:21;display:none}
+.sheet h3{font-family:'Michroma';font-size:13px;font-weight:600;letter-spacing:.05em;margin-bottom:16px}
+.sheetnote{margin:10px 2px 0;font-size:12px;line-height:1.5;color:var(--mut)}
+.sheetnote b{color:var(--text)}
+.wopt{display:flex;align-items:center;gap:14px;width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:16px;margin-bottom:10px;cursor:pointer;color:var(--text);font-family:'Space Grotesk';font-size:14px;font-weight:600;text-align:left}
+.wopt:hover{border-color:var(--violet)}
+.wopt small{display:block;font-weight:400;font-size:12px;color:var(--mut);margin-top:2px}
+.wopt svg{width:26px;height:26px;flex:none}
+.sheet.open,.sheet-back.open{display:block}
+button:focus-visible,input:focus-visible{outline:2px solid var(--violet);outline-offset:2px}
+
+/* ── Desktop layout (≥900px): wider canvas, 4-col stats, 3-col steps,
+      centered action card, connect sheet becomes a centered modal ── */
+@media (min-width: 900px){
+  .wrap{max-width:880px;padding:0 32px 80px}
+  header{padding:28px 0 36px}
+  .brand .name{font-size:14px}
+  .backing{font-size:76px}
+  .rail{height:32px}
+  .stats{grid-template-columns:repeat(4,1fr)}
+  .how{grid-template-columns:repeat(3,1fr)}
+  .card{max-width:620px;margin-left:auto;margin-right:auto}
+  .epoch{max-width:620px;margin-left:auto;margin-right:auto}
+  .vaultbar{justify-content:flex-start}
+  .sheet{
+    bottom:auto;top:50%;left:50%;right:auto;
+    transform:translate(-50%,-50%);
+    width:420px;max-width:90vw;
+    border-radius:20px;border:1px solid var(--line);
+    padding:24px 22px 26px;
+  }
+}
+
+
+/* liquidity pools */
+.paddr{margin-top:6px;font-family:'IBM Plex Mono';font-size:11px;color:var(--mut);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.paddr a{color:var(--mint);text-decoration:none}
+.paddr a:hover{text-decoration:underline}
+.icpy{background:none;border:1px solid var(--line);border-radius:6px;color:var(--mut);font-size:10px;padding:2px 7px;cursor:pointer;font-family:'Space Grotesk'}
+.icpy:hover{border-color:var(--pulse);color:var(--text)}
+.pool{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:14px 16px;margin-bottom:10px;flex-wrap:wrap}
+.pool .pname{font-weight:600;font-size:14px}
+.pool .pdepth{font-family:'IBM Plex Mono';font-size:12px;color:var(--mut)}
+.pool .papr{font-family:'IBM Plex Mono';font-size:15px;font-weight:600;color:var(--mint);white-space:nowrap}
+.pool .papr small{display:block;font-family:'Space Grotesk';font-weight:400;font-size:10px;color:var(--mut);text-align:right}
+
+/* vault switcher */
+.vaultbar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 26px}
+.vpill{font-family:'Michroma';font-size:11px;letter-spacing:.06em;padding:10px 16px;border-radius:99px;
+  border:1px solid var(--line);background:var(--panel);color:var(--mut);cursor:pointer}
+.vpill[aria-selected="true"]{color:var(--text);border-color:var(--pulse);box-shadow:0 0 0 1px var(--pulse) inset}
+.slipchips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.slipchip{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:8px;font-size:11px;padding:5px 8px;cursor:pointer;font-family:'IBM Plex Mono'}
+.slipchip.on{border-color:var(--pulse);color:var(--text)}
+.pctrow{display:flex;gap:8px;margin:4px 0 10px}
+.pctrow button{flex:1;background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:10px;font-size:13px;padding:10px 8px;cursor:pointer;font-family:'Space Grotesk';font-weight:600}
+.pctrow button.on{border-color:var(--pulse);color:var(--text);box-shadow:0 0 0 1px var(--pulse) inset}
+.lp-range{width:100%;accent-color:var(--pulse);margin:2px 0 10px}
+.warn-ok{color:var(--mint)!important}
+.warn-mid{color:var(--gold)!important}
+.warn-bad{color:var(--danger)!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="brand">
+    <img id="brandLogo" src="" alt="" width="38" height="38" style="display:none">
+    <div>
+      <div class="name" id="brandName"></div>
+      <div class="tick" id="brandTick"></div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <a id="explorerTab" class="navtab" href="#" rel="noopener">PulseVerify ↗</a>
+    <a id="marketTab" class="navtab" href="#" rel="noopener">Market Desk ↗</a>
+    <a id="whitepaperTab" class="navtab" href="#" rel="noopener">Whitepaper ↗</a>
+    <label for="rpcSel" class="sr-only">RPC endpoint</label>
+    <select id="rpcSel" class="rpcsel" title="RPC endpoint this dapp reads from"></select>
+    <button id="connectBtn">Connect</button>
+  </div>
+</header>
+
+<div class="trust">
+  <span class="chip on">● Immutable — no admin keys</span>
+  <span class="chip">No transfer tax</span>
+  <span class="chip">Redemption never gated</span>
+</div>
+
+<div class="vaultbar" id="vaultbar" role="tablist" aria-label="Vaults"></div>
+
+<section class="ratchet" aria-label="Backing per token">
+  <div class="eyebrow" id="eyebrow">Backing per token</div>
+  <div class="backing"><span id="backingNum">·····</span><span class="unit" id="backingUnit"></span></div>
+  <div class="backdelta" id="backDelta" style="display:none"></div>
+  <div class="rail" aria-hidden="true">
+    <div class="teeth"></div><div class="trail" id="railTrail"></div><div class="pawl" id="railPawl"></div>
+  </div>
+  <p class="rail-note" id="railNote"></p>
+  <div class="mktrow">
+    <span class="chip" id="mktChip" style="display:none"></span>
+    <button class="chip chipbtn" id="copyTok" style="display:none">copy token address</button>
+  </div>
+</section>
+
+<section class="stats" aria-label="Vault statistics">
+  <div class="stat"><div class="k" id="statVaultK">Vault holds</div><div class="v" id="vaultBal">·····</div></div>
+  <div class="stat"><div class="k" id="statSupplyK">Supply</div><div class="v" id="supply">·····</div></div>
+  <div class="stat"><div class="k" id="statTokK">Your tokens</div><div class="v" id="userTok">—</div></div>
+  <div class="stat"><div class="k" id="statAssetK">Your asset</div><div class="v" id="userAsset">—</div></div>
+</section>
+
+<div class="epoch">
+  <span>Mintable this epoch: <b id="quota">·····</b></span>
+  <span>resets in <b id="epochTimer">·····</b></span>
+</div>
+
+<section class="card" aria-label="Swap, mint or redeem">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tabSwap" aria-selected="true">Swap</button>
+    <button class="tab" role="tab" id="tabMint" aria-selected="false">Mint</button>
+    <button class="tab" role="tab" id="tabRedeem" aria-selected="false">Redeem</button>
+  </div>
+
+  <div id="swapPane">
+    <div class="field">
+      <label for="xSwapIn">You pay</label>
+      <div class="amt-row">
+        <input id="xSwapIn" inputmode="decimal" placeholder="0.0" autocomplete="off">
+        <select id="xPaySel" class="paysel" aria-label="Pay with"></select>
+        <button type="button" class="maxbtn" id="xSwapMax">MAX</button>
+      </div>
+      <div class="bal" id="xSwapBal"></div>
+    </div>
+    <div class="field" style="margin-top:10px">
+      <label for="xSwapOut">You receive</label>
+      <div class="amt-row">
+        <input id="xSwapOut" inputmode="decimal" placeholder="0.0" autocomplete="off" readonly>
+        <select id="xGotSel" class="paysel" aria-label="Receive"></select>
+      </div>
+    </div>
+    <div class="preview">
+      <div class="row"><span>Route</span><span id="xSwapVia">—</span></div>
+      <div class="row"><span>Pool</span><span id="xSwapPool">—</span></div>
+      <div class="row"><span>Spot</span><span id="xSwapSpot">—</span></div>
+      <div class="row"><span>This swap</span><span id="xSwapExec">—</span></div>
+      <div class="row"><span>Price impact</span><span id="xSwapImp">—</span></div>
+      <div class="row"><span>Of pool (in)</span><span id="xSwapShare">—</span></div>
+      <div class="row"><span>Vs vault</span><span id="xSwapVs">—</span></div>
+      <div class="row"><span>~2% impact size</span><span id="xSwapSafe">—</span></div>
+      <div class="row"><span>Max slippage</span><span class="slipchips" id="xSlip"></span></div>
+      <div class="row"><span>Min received</span><span id="xSwapMin">—</span></div>
+    </div>
+    <p class="swap-note" id="xSwapWarn">Pools here can be thin. Check impact before you sign. PulseStrategy does not operate PulseX.</p>
+    <button class="action" id="xSwapBtn" type="button">Swap on PulseX</button>
+  </div>
+
+  <div id="mrPane" style="display:none">
+    <div class="field">
+      <label id="inLabel" for="amt">You deposit</label>
+      <div class="amt-row">
+        <input id="amt" inputmode="decimal" placeholder="0.0" autocomplete="off">
+        <span class="sym" id="inSym"></span>
+        <button class="maxbtn" id="maxBtn">MAX</button>
+      </div>
+      <div class="bal" id="inBal"></div>
+    </div>
+    <div class="preview">
+      <div class="row"><span>You receive</span><span id="outAmt">—</span></div>
+      <div class="row fee"><span id="feeLabel">Mint premium (4.5%: 4.0% vault, 0.5% protocol fee)</span><span id="feeAmt">—</span></div>
+    </div>
+    <button class="action" id="actionBtn" disabled>Connect wallet</button>
+  </div>
+  <div class="status" id="status"></div>
+</section>
+
+<section id="vouchBox" class="vouch-box" style="display:none" aria-label="Stake PLS for vPLS">
+  <h3>Get vPLS · then mint PLSstr</h3>
+  <p>PLSstr is backed by vPLS. Stake PLS through Vouch, then mint above — or swap PLS for PLSstr on the Swap tab. PulseStrategy is not affiliated with Vouch or PulseX — we use vPLS because it earns validator yield.</p>
+  <div class="rec-card" id="vRec">
+    <div class="rec-k">Recommended</div>
+    <div class="rec-t" id="vRecT">Checking the vPLS market…</div>
+    <div class="rec-d" id="vRecD">Compare staking through Vouch with buying vPLS on PulseX.</div>
+  </div>
+  <table class="route"><tbody>
+    <tr><th>Route</th><th>Cost of 1 vPLS</th></tr>
+    <tr id="vRowStake"><td>Stake PLS</td><td id="vCostStake">—</td></tr>
+    <tr id="vRowBuy"><td>Buy vPLS</td><td id="vCostBuy">—</td></tr>
+  </tbody></table>
+  <div class="tabs" role="tablist">
+    <button class="tab" id="vStakeTab" aria-selected="true">Stake</button>
+    <button class="tab" id="vUnTab">Unstake</button>
+  </div>
+  <div id="vStakePane">
+    <div class="field" style="margin:0 0 12px">
+      <label for="vPlsAmt">You stake</label>
+      <div class="amt-row">
+        <input id="vPlsAmt" inputmode="decimal" placeholder="0.0" autocomplete="off">
+        <span class="sym">PLS</span>
+        <button type="button" class="maxbtn" id="vPlsMax">MAX</button>
+      </div>
+      <div class="bal" id="vPlsBal"></div>
+    </div>
+    <div class="preview" style="padding-bottom:12px">
+      <div class="row"><span>Rate</span><span id="vRate">—</span></div>
+      <div class="row"><span>You receive</span><span id="vOut">—</span></div>
+      <div class="row"><span>Minimum</span><span id="vMin">10,000 PLS</span></div>
+    </div>
+    <button class="action" id="vStakeBtn">Connect wallet</button>
+  </div>
+  <div id="vUnPane" style="display:none">
+    <div class="field" style="margin:0 0 12px">
+      <label for="vVplsAmt">You unstake</label>
+      <div class="amt-row">
+        <input id="vVplsAmt" inputmode="decimal" placeholder="0.0" autocomplete="off">
+        <span class="sym">vPLS</span>
+        <button type="button" class="maxbtn" id="vVplsMax">MAX</button>
+      </div>
+      <div class="bal" id="vVplsBal"></div>
+    </div>
+    <div class="preview" style="padding-bottom:12px">
+      <div class="row"><span>You receive</span><span id="vUnOut">—</span></div>
+    </div>
+    <button class="action" id="vUnBtn">Connect wallet</button>
+    <div class="hsi-head">Pending PLS claims</div>
+    <div class="hsi-list" id="vClaimList"><div class="hsi-empty">None.</div></div>
+  </div>
+  <div class="status" id="vStatus"></div>
+  <p class="swap-note">Vouch UserDeposit <span class="mono">0x2D7Dcc5A1d90d08D484E38a4C99B8394daaF4B9e</span> · NetworkWithdraw <span class="mono">0x1F082785Ca889388Ce523BF3de6781E40b99B060</span>. Docs: <a href="https://vouch.run/docs/vouch_ecosystem/vPLS_Token.html" target="_blank" rel="noopener">vouch.run ↗</a></p>
+</section>
+
+<section id="httBox" class="vouch-box" style="display:none" aria-label="HTT and Actuator">
+  <h3 id="httTitle">Use HEXstr with HTT</h3>
+  <p id="httLead">HEXstr is backed by HTT. You don’t need to create a HEX stake. Recommended: buy this HTT on PulseX, then deposit it above. PulseStrategy is not affiliated with Actuator or PulseX.</p>
+  <div id="hexClaimBanner" class="claim-banner" style="display:none">
+    <div class="hsi-head" style="margin:0 0 6px">Claim HEX</div>
+    <p style="margin:0 0 10px"><b id="hexClaimAmt">—</b> HEX is waiting in Actuator for HTT you hold. You do not need another frontend.</p>
+    <button class="action" id="hexClaimGo" type="button">Claim HEX</button>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="tab" id="hexTabBtnHtt" aria-selected="true">HTT</button>
+    <button class="tab" id="hexTabBtnHsi">HSI & Actuator</button>
+  </div>
+
+  <div id="hexPaneHtt">
+    <div class="rec-card" id="hexRec">
+      <div class="rec-k">Recommended</div>
+      <div class="rec-t" id="hexRecT">Buy HTT, then deposit</div>
+      <div class="rec-d" id="hexRecD">You don’t need to stake HEX to use this vault. Buying HTT and depositing is the simple path.</div>
+    </div>
+    <div class="preview" style="padding-bottom:8px">
+      <div class="row"><span>Market</span><span id="hexMkt">—</span></div>
+      <div class="row"><span>Redemption</span><span>1 HTT = 1 HEX</span></div>
+      <div class="row"><span>Discount</span><span id="hexDisc">—</span></div>
+      <div class="row"><span>Days until HEX day</span><span id="hexLeft">—</span></div>
+    </div>
+    <table class="route"><tbody>
+      <tr><th>Route</th><th>What you do</th></tr>
+      <tr id="hexRowBuy"><td>🟢 Buy HTT</td><td>Swap HEX → HTT on PulseX</td></tr>
+      <tr id="hexRowHsi"><td>🔵 Create HTT</td><td>Stake HEX → HSI → mint later</td></tr>
+    </tbody></table>
+    <p class="swap-note">Want HTT or HEXstr? Use Swap above — HEX or PLS into this vault’s HTT, or into HEXstr. Then Mint if you bought HTT.</p>
+  </div>
+
+  <div id="hexPaneHsi" style="display:none">
+    <div class="adv-note">Already have a HEX stake? You can manage it here. HEXstr does not require you to create one — buy HTT on the HTT tab if you just want vault exposure. If you do want your own Actuator-backed HSI, everything below talks to Actuator’s contracts from this file. PulseStrategy is not affiliated with Actuator.</div>
+    <div class="field" style="margin:0 0 12px">
+      <label for="hexAmt">Create delegated HSI · HEX to stake</label>
+      <div class="amt-row">
+        <input id="hexAmt" inputmode="decimal" placeholder="0.0" autocomplete="off">
+        <span class="sym">HEX</span>
+        <button type="button" class="maxbtn" id="hexMax">MAX</button>
+      </div>
+      <div class="bal" id="hexBal"></div>
+    </div>
+    <div class="preview" style="padding-bottom:12px">
+      <div class="row"><span>HSI length</span><span id="httDays">—</span></div>
+      <div class="row"><span>Ends / HTT series</span><span id="httEnds">—</span></div>
+      <div class="row"><span>You receive</span><span>delegated HSI · mint HTT separately</span></div>
+    </div>
+    <button class="action" id="httBtn">Connect wallet</button>
+    <div class="field" style="margin:14px 0 0">
+      <label for="hsiNft">Or delegate an existing HSI NFT</label>
+      <div class="amt-row">
+        <input id="hsiNft" inputmode="numeric" placeholder="token id" autocomplete="off">
+        <button type="button" class="maxbtn" id="hsiDelBtn">Delegate</button>
+      </div>
+    </div>
+    <div class="status" id="httStatus"></div>
+    <div class="hsi-head">Your delegated stakes</div>
+    <p style="margin-bottom:10px">Mint only HTT for this vault’s day, up to Actuator’s extractable. You can mint again later as the stake earns. Retire HTT before end-stake if you want the HEX back on the HSI.</p>
+    <div class="hsi-list" id="httList"><div class="hsi-empty">Connect to load delegated HSIs.</div></div>
+    <div id="httRedeemWrap" style="display:none">
+      <div class="hsi-head">Redeem HTT for HEX</div>
+      <p style="margin-bottom:10px">Open on the HTT’s HEX day, for holders with or without a stake. 1 HTT = 1 HEX after backing stakes are ended. PulseStrategy does not custody this HEX — it sits in Actuator.</p>
+      <div class="hsi-list" id="httHold"></div>
+      <div id="httRedeemCustom" style="display:none">
+        <div class="field" style="margin:12px 0 12px">
+          <label for="redMat">Other HTT day</label>
+          <div class="amt-row">
+            <input id="redMat" inputmode="numeric" placeholder="e.g. 7777" autocomplete="off">
+            <span class="sym">HEX day</span>
+          </div>
+        </div>
+        <div class="field" style="margin:0 0 12px">
+          <label for="redAmt">Amount</label>
+          <div class="amt-row">
+            <input id="redAmt" inputmode="decimal" placeholder="0.0" autocomplete="off">
+            <span class="sym">HTT</span>
+          </div>
+          <div class="bal" id="redBal"></div>
+        </div>
+        <button class="action" id="redBtn">Redeem HTT</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="poolsSec" style="display:none" aria-label="Liquidity pools">
+  <h2>Liquidity pools <small>Provide liquidity, earn the trading fees this system generates.</small></h2>
+  <div id="poolsList"></div>
+  <div class="card" id="lpBox" style="margin-top:14px">
+    <div style="font-family:'Michroma';font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 8px">Manage PulseX LP</div>
+    <p class="swap-note" style="margin:0 0 12px">Add or remove liquidity for this vault’s pool from this file. PulseStrategy does not operate PulseX.</p>
+    <div class="note" id="lpPos" style="margin:0 0 14px">Open a vault to load the pool.</div>
+    <div class="tabs" role="tablist">
+      <button class="tab" id="lpTabAdd" aria-selected="true">Add</button>
+      <button class="tab" id="lpTabRem">Remove</button>
+    </div>
+    <div id="lpPaneAdd">
+      <div class="field">
+        <label for="lpTokAmt">Vault token</label>
+        <div class="amt-row">
+          <input id="lpTokAmt" inputmode="decimal" placeholder="0.0" autocomplete="off">
+          <span class="sym" id="lpTokSym">TOKEN</span>
+          <button type="button" class="maxbtn" id="lpTokMax">MAX</button>
+        </div>
+        <div class="bal" id="lpTokBal"></div>
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label for="lpQuoteAmt">Paired with</label>
+        <div class="amt-row">
+          <input id="lpQuoteAmt" inputmode="decimal" placeholder="0.0" autocomplete="off">
+          <select id="lpQuoteSel" class="paysel" aria-label="Pair asset"></select>
+          <button type="button" class="maxbtn" id="lpQuoteMax">MAX</button>
+        </div>
+        <div class="bal" id="lpQuoteBal"></div>
+      </div>
+      <div class="preview">
+        <div class="row"><span>You deposit</span><span id="lpAddPrev">—</span></div>
+        <div class="row"><span>Vs vault</span><span id="lpAddSkew">—</span></div>
+      </div>
+      <button class="action" id="lpAddBtn" type="button">Add liquidity</button>
+    </div>
+    <div id="lpPaneRem" style="display:none">
+      <div class="bal" id="lpBurnBal" style="margin:0 0 12px"></div>
+      <div class="pctrow" id="lpPctRow">
+        <button type="button" data-p="25">25%</button>
+        <button type="button" data-p="50">50%</button>
+        <button type="button" data-p="75">75%</button>
+        <button type="button" data-p="100">Max</button>
+      </div>
+      <input type="range" id="lpPctRange" min="0" max="100" value="0" class="lp-range" aria-label="Percent of LP to remove">
+      <div class="preview">
+        <div class="row"><span>Removing</span><span id="lpPctLab">0%</span></div>
+        <div class="row"><span>LP burned</span><span id="lpRemLp">—</span></div>
+        <div class="row"><span>Pool share</span><span id="lpRemShare">—</span></div>
+        <div class="row"><span>You receive</span><span id="lpRemPrev">—</span></div>
+      </div>
+      <button class="action" id="lpRemBtn" type="button">Remove liquidity</button>
+    </div>
+    <div class="status" id="lpStatus"></div>
+  </div>
+  <p class="rail-note" style="margin-top:10px">The arb-anchored floor and ceiling bound LP inventory risk — price mean-reverts around the ratchet instead of wandering freely. APR shown is trailing <b>realized</b> pool fees (annualized), not a promise, and excludes impermanent loss.</p>
+</section>
+
+<h2>How it works <small>Three moving parts.</small></h2>
+<div class="how">
+  <div class="step"><h3><span>Mint</span> — the ceiling</h3><p>Deposit the vault's asset, receive vault tokens at backing <b>+4.5%</b>. 4.0% of the premium stays in the vault, raising the floor for every holder; 0.5% protocol fee. Minting is capped at 10% of supply per 7-day epoch; when the quota fills, the DEX is the only source until the next epoch.</p></div>
+  <div class="step"><h3><span>Hold</span> — the ratchet</h3><p>Backing per token can only rise — premiums, fees, and donations feed it. Where the underlying asset is itself yield-bearing (like vPLS), its value grows underneath as well.</p></div>
+  <div class="step"><h3><span>Redeem</span> — the floor</h3><p>Burn vault tokens any time for your pro-rata share of the vault, minus <b>0.5%</b> that stays behind for remaining holders. Redemption is never paused, gated, or limited — the floor holds unconditionally.</p></div>
+</div>
+
+<h2>Disclosures <small>Read before minting.</small></h2>
+<div class="disc">
+  <p><b>What is guaranteed:</b> backing-per-token in the vault's asset never decreases from any operation of these contracts. There is no owner, no admin, no upgrade path, no pause switch — 100% of supply is minted publicly through one formula.</p>
+  <p><b>What is not guaranteed:</b> the market price of any vault token (it can sit at the floor indefinitely), the price of the underlying assets, or the layers below each asset. Each vault carries the full risk of its own backing asset and its issuing protocol — check the asset link in the footer for the active vault.</p>
+  <p>Nothing on this page is financial advice. Verify each contract's source yourself before depositing.</p>
+</div>
+
+<footer>
+  <div style="margin-bottom:10px">
+    Vault: <span class="mono" id="vaultLink">not configured</span><br>
+    <span id="assetLinkLabel">Asset: </span><span class="mono" id="assetLink"></span>
+  </div>
+  <div style="margin-top:16px" id="verifyBlock">
+    <a href="#" id="dlLink" class="dl-cta">⬇ Download this app</a>
+    <div style="margin-top:10px">Run it locally on desktop or mobile — it works with no server, reading PulseChain directly from your browser.</div>
+    <div class="dlnote">
+      <b>Using a downloaded copy</b><br>
+      Everything here works as soon as you open it. Connecting a wallet to <i>sign</i> a mint or redeem takes one extra step, because browsers keep downloaded files separate from websites.<br><br>
+      <b>On a computer</b> — let your wallet see local files: open <span class="mono">chrome://extensions</span> (or <span class="mono">brave://extensions</span>), find your wallet, click <b>Details</b>, and turn on <b>Allow access to file URLs</b>. Then connect with <b>Browser wallet</b>.<br><br>
+      <b>On Android</b> — open the file using <b>Cx File Explorer</b>, a free app on the official Google Play store (<a href="https://play.google.com/store/apps/details?id=com.cxinventor.file.explorer" target="_blank" rel="noopener">get it here</a>). In its Open-with list, choose Chrome or Brave — the ones marked <b>HTTP</b>. WalletConnect then works normally.<br><br>
+      <b>On iPhone or iPad</b> — a downloaded copy is fine for reading, but iOS gives no equivalent way to serve it, so use <b>pulsestrategy369.com/vaults</b> to connect a wallet.
+    </div>
+    <div class="hashline">SHA-256 of this file:<br><span id="fileHash">computing…</span></div>
+    <div style="opacity:.85">Cross-check the hash against the one published on our <a href="https://x.com/pulsestrategy" target="_blank" rel="noopener">X</a> / GitHub before trusting a downloaded copy.</div>
+  </div>
+  <div style="margin:14px 0;opacity:.85">
+    The <b>vaults dapp</b> and the <b>explorer</b> are two separate pages — download each from its own page: grab the vaults app here, then open the <a id="explorerFootLink" href="#" rel="noopener">PulseVerify Explorer</a> tab and download the explorer from there. The <a id="whitepaperFootLink" href="#" rel="noopener">whitepaper</a> is downloadable from its own page too.
+  </div>
+  <div>The contracts live on PulseChain and work without this page. This dapp reads the chain directly from your browser — no server, no database, no tracking.</div>
+  <div style="margin-top:10px">
+    <a href="https://x.com/pulsestrategy" target="_blank" rel="noopener">@pulsestrategy</a> ·
+    the floor only rises · <span class="mono" id="buildTag"></span>
+  </div>
+</footer>
+
+</div>
+
+<div class="sheet-back" id="sheetBack"></div>
+<div class="sheet" id="sheet" role="dialog" aria-label="Connect a wallet">
+  <h3>Connect a wallet</h3>
+  <button class="wopt" id="optInjected">
+    <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="13" rx="3" stroke="#8B5CF6" stroke-width="1.8"/><path d="M16 12.5h2" stroke="#E63E92" stroke-width="2" stroke-linecap="round"/></svg>
+    <span>Browser wallet<small>MetaMask, Rabby, Internet Money — in-app browser or extension</small></span>
+  </button>
+  <button class="wopt" id="optWC">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M6 10c3.4-3.2 8.6-3.2 12 0M8.5 12.4c2-1.9 5-1.9 7 0l-3.5 3.3z" stroke="#3B99FC" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    <span>WalletConnect<small>Scan or tap to open any mobile wallet app</small></span>
+  </button>
+  <p class="sheetnote" id="fileNote" style="display:none"></p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.15.0/ethers.umd.min.js"></script>
+<script src="https://unpkg.com/@walletconnect/ethereum-provider@2.21.1/dist/index.umd.js"></script>
+<script>
+/* ═══════════════════ CONFIG — everything you edit is here ═══════════════════ */
+/* ─── Branding: edit these when cloning this file for another chain/site ─── */
+const LOGO = "data:image/png;base64,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";
+/* To swap logos: replace the data-URI string above (or set LOGO = "logo.png"
+   and upload that file next to this one). Set LOGO = "" for no logo. */
+
+const EXPLORER_URL = "https://pulsestrategy369.com"; /* ★ EDIT HERE: the one place that controls every 'PulseVerify Explorer' link on this page */
+const WHITEPAPER_URL = "https://pulsestrategy369.com/whitepaper"; /* ★ EDIT HERE: the one place that controls every 'Whitepaper' link on this page */
+const MARKET_URL = "https://pulsestrategy369.com/market"; /* ★ EDIT HERE: Market Desk */
+/* ★ EDIT HERE — PulseX links */
+const PULSEX_APP = "https://ipfs.app.pulsex.com";
+const pulsexSwap = () => PULSEX_APP;
+const pulsexAdd  = () => PULSEX_APP + "/liquidity";
+
+const SITE = {
+  title:     "PulseStrategy Vaults · the floor only rises",  // browser tab
+  brandName: "PULSE STRATEGY",                               // header wordmark
+  brandTick: "VAULTS · PULSECHAIN",                          // small line under it
+  domain:    "pulsestrategy369.com",                         // footer (blank to hide)
+  xHandle:   "pulsestrategy",                                // footer X link (blank to hide)
+  logo:      LOGO
+};
+
+const CHAIN = {
+  id: 369, hex: "0x171", name: "PulseChain",
+  rpcs: [                                    // tried in order; first responsive one wins
+    "https://rpc.pulsechain.com",
+    "https://pulsechain-rpc.publicnode.com",
+    "https://rpc.pulsechainstats.com",
+    "https://rpc-pulsechain.g4mm4.io"
+  ],
+  explorer: "https://pulsestrategy369.com/address/",
+  nativeCurrency: { name:"Pulse", symbol:"PLS", decimals:18 },
+  blockTimeSec: 10                           // avg block time; used for the trailing-APR window
+};
+
+/* ── Custom RPC ───────────────────────────────────────────────────────────
+   Users can point this dapp at any public RPC (Chainlist etc.) or their own
+   node. The choice lives in their browser only and is shared with the
+   PulseVerify explorer on this domain, so it only has to be set once.
+   The public list is kept separately: it is what we hand a wallet when
+   adding the network, so a private/local URL never gets written into
+   someone's wallet config. */
+CHAIN.publicRpcs = CHAIN.rpcs.slice();
+try{
+  const savedRpc = localStorage.getItem("pv_rpc");
+  if (savedRpc && (/^https:\/\/.+/.test(savedRpc) ||
+      (location.protocol !== "https:" && /^http:\/\/.+/.test(savedRpc)))) {
+    CHAIN.rpcs = CHAIN.publicRpcs.indexOf(savedRpc) !== -1
+      ? [savedRpc].concat(CHAIN.publicRpcs.filter(u => u !== savedRpc))  // preferred public: keep failover
+      : [savedRpc];                                                      // own node: use exclusively
+  }
+}catch(_){}
+
+const BUILD = "v49 \u00b7 2026-09-15";   // shown in the footer so users can tell builds apart
+const WC_PROJECT_ID = "dfa53b26ebcaa8d274b2a7f6ddc66cb0";   // free at https://cloud.reown.com (enables WalletConnect)
+const VOUCH_VPLS = "0x79BB3A0Ee435f957ce4f54eE8c3CFADc7278da0C";
+const VOUCH_DEPOSIT = "0x2D7Dcc5A1d90d08D484E38a4C99B8394daaF4B9e";
+const VOUCH_WITHDRAW = "0x1F082785Ca889388Ce523BF3de6781E40b99B060";
+const PLS_DEC = 18;
+const HTT_MANAGER = "0x0d5d61FDDf84feFAB26f98164D8009022d740206";
+const HSIM_ADDR = "0x8BD3d1472A656e312E94fB1BbdD599B8C51D18e3";
+const HEX_ADDR = "0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39";
+const HEX_MAX_DAYS = 5555;
+const HEX_DEC = 8;
+const HEDRON_ADDR = "0x3819f64f282bf135d62168C1e513280dAF905e06";
+const HEDRON_DEC = 9;
+const HTT_KNOWN = [3000,3690,4000,5000,5555,6000,6666,7000,7777,7900,8000];
+
+/* One entry per vault ON THIS CHAIN. To add a vault (any decimals — 8-dec HEX,
+   18-dec vPLS, etc.): deploy the StrategyVault template, then add one object
+   here. Decimals are read from the chain automatically. */
+const VAULTS = [
+  {
+    key: "PLSstr",
+    name: "PulseStrategy",
+    token: "PLSstr",
+    assetSym: "vPLS",
+    vault: "0x71ff5C9C9938E39E819246ef939FFb5Fd228922d", // Vault
+    assetAddr: "0x79BB3A0Ee435f957ce4f54eE8c3CFADc7278da0C", // vPLS
+    yieldNote: "each vPLS itself earns PLS staking yield underneath",
+    pools: [
+      // V2-style pair addresses; add one line per pool once they exist.
+       { name: "PLSstr/WPLS · PulseX v2", address: "0x38b204b4f9c38a5115186b1E20d55884a97ed1de" },
+      // { name: "PLSstr/vPLS · PulseX",  address: "0x..." },
+      // { name: "PLSstr/DAI · PulseX",  address: "0x..." },
+    ]
+  },
+  
+  {
+    key: "HEXstr-3000",
+    name: "HEXstrategy-3000",
+    token: "HEXstr-3000",
+    assetSym: "HTT-3000",
+    vault: "0xd992b901474715accB07C5e933EDb8992715b4c2",  // vault
+    assetAddr: "0xE9E1340A2b31d5D2a2dB28FB854a794E106b430a",                                  
+    yieldNote:"Growth comes from premiums, fees, donations, and the underlying yield from the HEX stakes. (HTT-3000 Redemption day 02/18/28 USERS MUST REDEEM HTT from vault to redeem HEX from actuator finance)",
+    pools: [
+      // V2-style pair addresses; add one line per pool once they exist.
+       { name: "HEXstr-3000/HEX · PulseX v2", address: "0x8126066BdFe45d456735f7193F022B448BE67776" },
+      // { name: "HEXstr-3000/PLS · PulseX",  address: "0x..." },
+      // { name: "HEXstr-3000/DAI · PulseX",  address: "0x..." },
+    ]
+  },
+ 
+  {
+    key: "HEXstr-4000",
+    name: "HEXstrategy-4000",
+    token: "HEXstr-4000",
+    assetSym: "HTT-4000",
+    vault: "0x26E1C36F8fcd4fFD6cBf047E91be8E5E8829f61e", // Vault
+    assetAddr: "0x3Cf372aA6aAa46eDc4B8da86294deC0DDecED632",                                  
+    yieldNote:"Growth comes from premiums, fees, donations, and the underlying yield from the HEX stakes. (HTT-4000 Redemption day 11/14/30 USERS MUST REDEEM HTT from vault to redeem HEX from actuator finance)",
+    pools: [
+      { name: "HEXstr-4000/HEX · PulseX v2", address: "0xD1cF5CA96788674C478Ba6C94f5297346910FFc4" }
+    ]
+  },
+
+  {
+    key: "HEXstr-5000",
+    name: "HEXstrategy-5000",
+    token: "HEXstr-5000",
+    assetSym: "HTT-5000",
+    vault: "0xa82d3b19929f412A72B5711d97b302d40B14f4F4",
+    assetAddr: "0xE2D03779147A32064511dd2b9D37F66f3EeFAd7C",                                  
+    yieldNote:"Growth comes from premiums, fees, donations, and the underlying yield from the HEX stakes. (HTT-5000 Redemption day 8/10/33 USERS MUST REDEEM HTT from vault to redeem HEX from actuator finance)",
+    pools: [
+      { name: "HEXstr-5000/HEX · PulseX v2", address: "0xb34f93d1AaAA5E28bcf2379fdF1852773F469701" }
+    ]
+  },
+
+  {
+    key: "HEXstr-6000",
+    name: "HEXstrategy-6000",
+    token: "HEXstr-6000",
+    assetSym: "HTT-6000",
+    vault: "0x369206C9566F9982Ba14fd86897D512b6dBC6602",
+    assetAddr: "0xcdBFaf528c7CeA55d0AEbdB93C218D6f23B24af3",                                  
+    yieldNote:"Growth comes from premiums, fees, donations, and the underlying yield from the HEX stakes. (HTT-6000 Redemption day 5/6/36 USERS MUST REDEEM HTT from vault to redeem HEX from actuator finance)",
+    pools: [
+      { name: "HEXstr-6000/HEX · PulseX v2", address: "0x09a48d046aF49b4D5152838C2623769Ef1787a18" }
+    ]
+  },
+
+  {
+    key: "HEXstr-7000",
+    name: "HEXstrategy-7000",
+    token: "HEXstr-7000",
+    assetSym: "HTT-7000",
+    vault: "0x9DeE9ee99228931AE9bF579407ff3608aFe231D3",
+    assetAddr: "0x47810bb3ECDc6b080CeB2d39E769F21Ff14AB7E9",                                  
+    yieldNote:"Growth comes from premiums, fees, donations, and the underlying yield from the HEX stakes. (HTT-7000 Redemption day 1/31/39 USERS MUST REDEEM HTT from vault to redeem HEX from actuator finance)",
+    pools: [
+      // V2-style pair addresses; add one line per pool once they exist.
+       { name: "HEXstr-7000/HEX · PulseX v2", address: "0x6F5a5387dd6aDAf5fE5A0340144162785fd6AC7F" },
+      // { name: "HEXstr-7000/PLS · PulseX",  address: "0x..." },
+      // { name: "HEXstr-7000/DAI · PulseX",  address: "0x..." },
+    ]
+  },
+];
+/* ════════════════════════════ end of config ════════════════════════════════ */
+
+const VAULT_ABI = [
+  "function mint(uint256,uint256) returns (uint256)",
+  "function redeem(uint256,uint256) returns (uint256)",
+  "function previewMint(uint256) view returns (uint256)",
+  "function previewRedeem(uint256) view returns (uint256,uint256)",
+  "function backingPerToken() view returns (uint256)",
+  "function vaultBalance() view returns (uint256)",
+  "function totalSupply() view returns (uint256)",
+  "function balanceOf(address) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  "function mintQuotaRemaining() view returns (uint256)",
+  "function timeToNextEpoch() view returns (uint256)"
+];
+const PAIR_ABI = [
+  "function getReserves() view returns (uint112,uint112,uint32)",
+  "function totalSupply() view returns (uint256)",
+  "function token0() view returns (address)",
+  "function token1() view returns (address)",
+  "function balanceOf(address) view returns (uint256)",
+  "function allowance(address,address) view returns (uint256)",
+  "function approve(address,uint256) returns (bool)"
+];
+const SYM_ABI = ["function symbol() view returns (string)","function decimals() view returns (uint8)"];
+const FACTORY_ABI = ["function getPair(address,address) view returns (address)"];
+const WPLS = "0xA1077a294dDE1B09bB078844df40758a5D0f9a27";
+const BRIDGES = [                                 // routing hops for market price
+  { addr:"0xA1077a294dDE1B09bB078844df40758a5D0f9a27", dec:18 },  // WPLS
+  { addr:"0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39", dec:8  },  // HEX
+  { addr:"0xefD766cCb38EaF1dfd701853BFCe31359239F305", dec:18 }   // DAI
+];
+const PULSEX_FACTORIES = [
+  "0x1715a3E4A142d8b698131108995174F37aEBA10D",  // PulseX v1
+  "0x29eA7545DEf87022BAdc76323F373EA1e707C523"   // PulseX v2
+];
+const PULSEX_V1_ROUTER = "0x98bf93ebf5c380C0e6Ae8e192A7e2AE08edAcc02";
+const PULSEX_V2_ROUTER = "0x165C3410fC91EF562C50559f7d2289fEbed552d9";
+const PULSEX_ROUTER_OF = {
+  "0x1715a3e4a142d8b698131108995174f37aeba10d": PULSEX_V1_ROUTER,
+  "0x29ea7545def87022badc76323f373ea1e707c523": PULSEX_V2_ROUTER
+};
+const ROUTER_ABI = [
+  "function getAmountsOut(uint256,address[]) view returns (uint256[])",
+  "function swapExactTokensForTokens(uint256,uint256,address[],address,uint256) returns (uint256[])",
+  "function swapExactETHForTokens(uint256,address[],address,uint256) payable returns (uint256[])",
+  "function swapExactTokensForETH(uint256,uint256,address[],address,uint256) returns (uint256[])",
+  "function addLiquidity(address,address,uint256,uint256,uint256,uint256,address,uint256) returns (uint256,uint256,uint256)",
+  "function addLiquidityETH(address,uint256,uint256,uint256,address,uint256) payable returns (uint256,uint256,uint256)",
+  "function removeLiquidity(address,address,uint256,uint256,uint256,address,uint256) returns (uint256,uint256)",
+  "function removeLiquidityETH(address,uint256,uint256,uint256,address,uint256) returns (uint256,uint256)"
+];
+
+const ERC20_ABI = [
+  "function balanceOf(address) view returns (uint256)",
+  "function allowance(address,address) view returns (uint256)",
+  "function approve(address,uint256) returns (bool)",
+  "function decimals() view returns (uint8)"
+];
+const HEX_DAY_ABI = ["function currentDay() view returns (uint256)"];
+const HTTM_ABI = [
+  "function hexStakeStart(uint256,uint256) returns (address)",
+  "function delegateHSI(uint256) returns (address)",
+  "function mintHEXTimeTokens(uint256,uint256,uint256) returns (address)",
+  "function retireHEXTimeTokens(uint256,uint256,uint256)",
+  "function revokeHSIDelegation(uint256,uint256) returns (uint256)",
+  "function endHEXStake(uint256,uint256) returns (uint256)",
+  "function endCollateralizedHEXStake(address,uint256,uint256,uint256)",
+  "function mintInstanced(uint256,uint256) returns (uint256)",
+  "function redeemHEXTimeTokens(uint256,uint256)",
+  "function hsiCount(address) view returns (uint256)",
+  "function hsiLists(address,uint256) view returns (address)",
+  "function getExtractableAmount(address,uint256) view returns (uint256)",
+  "function shareLists(address,uint256) view returns (uint40,uint72,uint72,uint16,uint16,uint256,uint256,address)",
+  "function findHedronHSIIndex(address) view returns (int256)",
+  "function hsiListRange(uint256,uint256,uint256) view returns (address[])",
+  "function maturityToInfo(uint16) view returns (uint72,address)",
+  "event StartStake(address indexed user, address indexed hsiAddress)"
+];
+const VOUCH_DEP_ABI = [
+  "function deposit() payable",
+  "function minDeposit() view returns (uint256)",
+  "function getRate() view returns (uint256)",
+  "function depositEnabled() view returns (bool)",
+  "function getBalance() view returns (uint256)"
+];
+const VOUCH_WD_ABI = [
+  "function unstake(uint256)",
+  "function withdraw(uint256[])",
+  "function getUnclaimedWithdrawalsOfUser(address) view returns (uint256[])",
+  "function withdrawalAtIndex(uint256) view returns (address,uint256)",
+  "function maxClaimableWithdrawIndex() view returns (uint256)",
+  "function totalMissingAmountForWithdraw() view returns (uint256)"
+];
+const VPLS_ABI = [
+  "function balanceOf(address) view returns (uint256)",
+  "function allowance(address,address) view returns (uint256)",
+  "function approve(address,uint256) returns (bool)",
+  "function getRate() view returns (uint256)"
+];
+const HSIM_ABI = [
+  "function approve(address,uint256)",
+  "function setApprovalForAll(address,bool)",
+  "function getApproved(uint256) view returns (address)",
+  "function isApprovedForAll(address,address) view returns (bool)"
+];
+
+const $ = id => document.getElementById(id);
+const MAXU = (1n<<256n)-1n;
+// Read-provider with automatic RPC fallback: each endpoint is created with
+// staticNetwork (no detection roundtrip), then verified with a real call.
+// The first endpoint that answers becomes the provider; if the active one
+// starts failing later, refresh() rotates to the next automatically.
+let rpcIndex = 0;
+let readProvider = new ethers.JsonRpcProvider(CHAIN.rpcs[0], CHAIN.id, { staticNetwork: true });
+let rpcHealthy = false;
+
+async function ensureRpc(){
+  for (let tries = 0; tries < CHAIN.rpcs.length; tries++) {
+    try {
+      await readProvider.getBlockNumber();      // cheap liveness probe
+      rpcHealthy = true;
+      return true;
+    } catch (_) {
+      rpcIndex = (rpcIndex + 1) % CHAIN.rpcs.length;
+      console.warn("RPC unresponsive, switching to:", CHAIN.rpcs[rpcIndex]);
+      readProvider = new ethers.JsonRpcProvider(CHAIN.rpcs[rpcIndex], CHAIN.id, { staticNetwork: true });
+    }
+  }
+  rpcHealthy = false;
+  return false;
+}
+
+let cur = null;           // active vault runtime {cfg, vr, ar, aDec, tDec, vault, assetW}
+let eip1193=null, signer=null, account=null;
+let mode="mint", bal={asset:0n, token:0n}, previewOut=0n, needsApproval=false;
+let epochSecs=null, epochFetched=0;
+let lastVplsRate=null;
+
+const fmt = (bn, dec, dp=4) => {
+  if (bn===null||bn===undefined) return "—";
+  const n = parseFloat(ethers.formatUnits(bn, dec));
+  if (!isFinite(n)) return "∞";
+  if (n!==0 && n<0.0001) return "<0.0001";
+  return n.toLocaleString("en-US",{maximumFractionDigits:dp});
+};
+const short = a => a ? a.slice(0,6)+"…"+a.slice(-4) : "";
+function cleanNum(v){ return String(v||"").replace(/,/g,"").trim(); }
+function commaNum(v, dp=4){
+  const t=cleanNum(v);
+  if(!t) return "";
+  const n=Number(t);
+  if(!isFinite(n)) return String(v);
+  return n.toLocaleString("en-US",{maximumFractionDigits:dp});
+}
+function parseInput(v, dec){
+  const t=cleanNum(v);
+  if(!t || !(parseFloat(t)>0)) return null;
+  try{ return ethers.parseUnits(t, dec); }catch(_){ return null; }
+}
+function fmtLp(bn){
+  if(bn===null||bn===undefined) return "—";
+  if(bn===0n) return "0";
+  const n=Number(ethers.formatUnits(bn, 18));
+  if(!isFinite(n)) return "—";
+  if(n>0 && n<0.001) return n.toLocaleString("en-US",{maximumFractionDigits:12, minimumFractionDigits:6});
+  return n.toLocaleString("en-US",{maximumFractionDigits:6});
+}
+function sharePct(part, whole){
+  if(!whole || whole===0n) return "0.000";
+  return (Number(part * 100000n / whole)/1000).toFixed(3);
+}
+function liveComma(el){
+  if(!el || el.readOnly) return;
+  const old=el.value;
+  const sel=el.selectionStart ?? old.length;
+  const leftKept=old.slice(0, sel).replace(/,/g,"");
+  let s=old.replace(/,/g,"");
+  const hadDot=s.includes(".");
+  if(hadDot){
+    const i=s.indexOf(".");
+    s=s.slice(0,i).replace(/\D/g,"")+"."+s.slice(i+1).replace(/\D/g,"");
+  }else s=s.replace(/\D/g,"");
+  let intp=s, frac=null;
+  if(hadDot){ const i=s.indexOf("."); intp=s.slice(0,i); frac=s.slice(i+1); }
+  intp=intp.replace(/^0+(?=\d)/,"");
+  if(intp==="") intp=hadDot?"0":"";
+  const intFmt=intp.replace(/\B(?=(\d{3})+(?!\d))/g,",");
+  const formatted=hadDot?intFmt+"."+frac:intFmt;
+  if(formatted===old) return;
+  el.value=formatted;
+  let pos=formatted.length;
+  if(sel<old.length){
+    const target=leftKept.length;
+    let seen=0;
+    pos=formatted.length;
+    for(let i=0;i<formatted.length;i++){
+      if(formatted[i]===",") continue;
+      seen++;
+      if(seen>=target){ pos=i+1; break; }
+    }
+  }
+  try{ el.setSelectionRange(pos, pos); }catch(_){}
+}
+let statusLockUntil = 0;
+function setStatus(m,c=""){
+  /* refresh() clears the status every cycle; don't let it wipe a pinned
+     transaction result out from under someone reaching for the link */
+  if(m === "" && Date.now() < statusLockUntil) return;
+  if(m !== "") statusLockUntil = 0;
+  const s=$("status");s.textContent=m;s.className="status "+c;
+}
+function setStatusHtml(html,c="",stickySec=0){
+  const s=$("status");s.innerHTML=html;s.className="status "+c;
+  statusLockUntil = stickySec ? Date.now() + stickySec*1000 : 0;
+}
+/* link a confirmed tx straight into PulseVerify */
+function dismissLink(){ return ' <a href="#" onclick="clearStatus(event)" style="color:var(--mut)">dismiss</a>'; }
+function clearStatus(e){ if(e) e.preventDefault(); statusLockUntil = 0; setStatus(""); }
+function txLink(hash){
+  if(!/^0x[0-9a-fA-F]{64}$/.test(hash||"")) return "";
+  const base = CHAIN.explorer.replace(/\/address\/$/,"/tx/");
+  return ' <a href="'+base+hash+'" target="_blank" rel="noopener">view on PulseVerify \u2197</a>';
+}
+function setRail(backing){
+  const growthPct=(parseFloat(ethers.formatEther(backing))-1)*100;
+  const pos=Math.max(0,Math.min(96,growthPct*6));
+  $("railPawl").style.left=pos+"%"; $("railTrail").style.width=pos+"%";
+}
+
+/* ---------- vault activation ---------- */
+async function activateVault(key){
+  const cfg = VAULTS.find(v=>v.key===key);
+  if(!cfg) return;
+  rememberVault(key);
+  statusLockUntil = 0;
+  { const bd = $("backDelta"); if(bd) bd.style.display = "none"; }
+  { const tl = $("tradeLink"); if(tl) tl.style.display = "none"; }
+  document.querySelectorAll(".vpill").forEach(p=>p.setAttribute("aria-selected", p.dataset.key===key));
+
+  await ensureRpc();
+  const ar = new ethers.Contract(cfg.assetAddr, ERC20_ABI, readProvider);
+  const vr = cfg.vault ? new ethers.Contract(cfg.vault, VAULT_ABI, readProvider) : null;
+  let aDec = 18, tDec = 18;
+  try { aDec = Number(await ar.decimals()); } catch(_){}
+  if (vr) { try { tDec = Number(await vr.decimals()); } catch(_) { tDec = aDec; } } else tDec = aDec;
+
+  cur = { cfg, ar, vr, aDec, tDec,
+          vault: (cfg.vault && signer) ? new ethers.Contract(cfg.vault, VAULT_ABI, signer) : null,
+          assetW: signer ? new ethers.Contract(cfg.assetAddr, ERC20_ABI, signer) : null };
+  paintTradeLink();   /* must run *after* cur points at the new vault */
+
+  // relabel the page for this vault
+  $("backingUnit").textContent = cfg.assetSym;
+  $("eyebrow").textContent = "Backing per "+cfg.token;
+  $("statVaultK").textContent = "Vault holds";
+  $("statSupplyK").textContent = cfg.token+" supply";
+  $("statTokK").textContent = "Your "+cfg.token;
+  $("statAssetK").textContent = "Your "+cfg.assetSym;
+  $("railNote").innerHTML = "The ratchet <b>only moves right</b>. Every mint premium, redemption fee, and donation raises the "+cfg.assetSym+" floor"
+      + (cfg.yieldNote ? " — and "+cfg.yieldNote : "") + ". No operation in the contract can lower it.";
+  const vl = $("vaultLink");
+  vl.innerHTML = cfg.vault ? '<a href="'+CHAIN.explorer+cfg.vault+'" target="_blank" rel="noopener">'+cfg.vault+'</a>' : 'not configured';
+  $("assetLink").innerHTML = '<a href="'+CHAIN.explorer+cfg.assetAddr+'" target="_blank" rel="noopener">'+cfg.assetAddr+'</a>';
+  $("assetLinkLabel").textContent = cfg.assetSym+": ";
+
+  bal={asset:0n, token:0n}; previewOut=0n; $("amt").value="";
+  swapVaultKey=null; lpVaultKey=null;
+  setCardTab("swap");
+  loadPools(cfg);
+  paintBackingSources();
+  await refresh();
+  quoteVaultSwap();
+}
+
+function httMaturity(){
+  const m=Number(String(cur?.cfg?.assetSym||"").replace(/^HTT-/i,""));
+  return Number.isFinite(m) && m>0 ? m : 0;
+}
+function paintBackingSources(){
+  const vbox=$("vouchBox"), hbox=$("httBox");
+  const isPls=cur && cur.cfg.key==="PLSstr";
+  const mat=httMaturity();
+  const isHex=cur && /^HEXstr/i.test(cur.cfg.key) && mat>0;
+  if(vbox){
+    vbox.style.display=isPls?"":"none";
+    if(isPls) paintVouch();
+  }
+  if(hbox){
+    hbox.style.display=isHex?"":"none";
+    if(isHex){
+      const sym=cur.cfg.assetSym;
+      if($("httTitle")) $("httTitle").textContent="Use "+cur.cfg.token+" with "+sym;
+      if($("httLead")) $("httLead").textContent="You don't need to stake HEX to use this vault. Buy "+sym+" on PulseX, then deposit it above. HSI & Actuator is the advanced path if you already have a HEX stake. PulseStrategy is not affiliated with Actuator or PulseX.";
+      if($("hSwapSym")) $("hSwapSym").textContent=sym;
+      if(hexUiTab==="pos") hexUiTab="htt";
+      setHexUiTab(hexUiTab||"htt");
+      paintHexReco();
+      syncHttWalletUi();
+      paintHttPreview();
+      loadHsiList();
+      loadHttHoldings();
+    }
+  }
+}
+
+let vouchMode="stake";
+function setVouchStatus(m,c=""){ const s=$("vStatus"); if(s){ s.textContent=m; s.className="status "+c; } }
+function parsePls(el){
+  const v=cleanNum(el?.value);
+  if(!v || !(parseFloat(v)>0)) return null;
+  try{ return ethers.parseUnits(v, PLS_DEC); }catch(_){ return null; }
+}
+function setVouchMode(m){
+  if(m==="buy") m="stake";
+  vouchMode=m;
+  if($("vStakeTab")) $("vStakeTab").setAttribute("aria-selected", m==="stake"?"true":"false");
+  if($("vUnTab")) $("vUnTab").setAttribute("aria-selected", m==="unstake"?"true":"false");
+  if($("vStakePane")) $("vStakePane").style.display=m==="stake"?"":"none";
+  if($("vUnPane")) $("vUnPane").style.display=m==="unstake"?"":"none";
+  paintVouch();
+}
+async function paintVouch(){
+  if(!cur || cur.cfg.key!=="PLSstr") return;
+  const stakeBtn=$("vStakeBtn"), unBtn=$("vUnBtn");
+  if(!account){
+    if(stakeBtn) stakeBtn.textContent="Connect wallet";
+    if(unBtn) unBtn.textContent="Connect wallet";
+    if($("vPlsBal")) $("vPlsBal").textContent="";
+    if($("vVplsBal")) $("vVplsBal").textContent="";
+  }else{
+    if(stakeBtn) stakeBtn.textContent="Stake PLS for vPLS";
+    if(unBtn) unBtn.textContent="Unstake vPLS";
+  }
+  let rate=0n, min=10_000n*10n**18n;
+  try{
+    const dep=new ethers.Contract(VOUCH_DEPOSIT, VOUCH_DEP_ABI, readProvider);
+    const [r, mn] = await Promise.all([dep.getRate(), dep.minDeposit()]);
+    if(r>0n) rate=r;
+    if(mn>0n) min=mn;
+  }catch(_){
+    try{ rate=await new ethers.Contract(VOUCH_VPLS, VPLS_ABI, readProvider).getRate(); }catch(__){}
+  }
+  if($("vRate")) $("vRate").textContent=rate>0n ? (fmt(rate, PLS_DEC, 6)+" PLS / vPLS") : "—";
+  if(rate>0n) lastVplsRate=Number(ethers.formatUnits(rate, PLS_DEC));
+  if($("vMin")) $("vMin").textContent=fmt(min, PLS_DEC, 0)+" PLS";
+  if(account){
+    try{ $("vPlsBal").textContent="Balance: "+fmt(await readProvider.getBalance(account), PLS_DEC, 4)+" PLS"; }catch(_){}
+    try{
+      const b=await new ethers.Contract(VOUCH_VPLS, VPLS_ABI, readProvider).balanceOf(account);
+      $("vVplsBal").textContent="Balance: "+fmt(b, PLS_DEC, 4)+" vPLS";
+    }catch(_){}
+  }
+  const plsIn=parsePls($("vPlsAmt"));
+  if($("vOut")){
+    if(plsIn && rate>0n) $("vOut").textContent=fmt(plsIn * 10n**18n / rate, PLS_DEC, 4)+" vPLS";
+    else $("vOut").textContent="—";
+  }
+  const vIn=parsePls($("vVplsAmt"));
+  if($("vUnOut")){
+    if(vIn && rate>0n) $("vUnOut").textContent=fmt(vIn * rate / 10n**18n, PLS_DEC, 4)+" PLS";
+    else $("vUnOut").textContent="—";
+  }
+  loadVouchClaims();
+  paintVplsReco(rate);
+  if(vouchMode==="buy") quoteBuy("v");
+}
+async function loadVouchClaims(){
+  const box=$("vClaimList");
+  if(!box) return;
+  if(!account){ box.innerHTML='<div class="hsi-empty">Connect to load claims.</div>'; return; }
+  try{
+    const wd=new ethers.Contract(VOUCH_WITHDRAW, VOUCH_WD_ABI, readProvider);
+    const [idxs, maxC] = await Promise.all([wd.getUnclaimedWithdrawalsOfUser(account), wd.maxClaimableWithdrawIndex()]);
+    if(!idxs.length){ box.innerHTML='<div class="hsi-empty">None.</div>'; return; }
+    const ready=[], wait=[];
+    for(const i of idxs){
+      let amt=0n;
+      try{ const w=await wd.withdrawalAtIndex(i); amt=w[1]; }catch(_){}
+      const row='<div class="row"><span>#'+i.toString()+'</span><span>'+escH(fmt(amt, PLS_DEC, 4))+' PLS</span></div>';
+      if(i<=maxC) ready.push({i, amt, row}); else wait.push({i, amt, row});
+    }
+    let html='';
+    if(ready.length){
+      html+='<div class="hsi-card">'+ready.map(x=>x.row).join("")+'<button type="button" id="vClaimBtn" style="width:100%;margin-top:10px">Claim '+ready.length+' ready</button></div>';
+    }
+    if(wait.length){
+      html+='<div class="hsi-card"><div class="hsi-empty" style="padding:0 0 6px">Waiting on Vouch’s withdraw cycle</div>'+wait.map(x=>x.row).join("")+'</div>';
+    }
+    box.innerHTML=html;
+    const cb=$("vClaimBtn");
+    if(cb) cb.onclick=()=>claimVouch(ready.map(x=>x.i));
+  }catch(_){
+    box.innerHTML='<div class="hsi-empty">Couldn’t read claims.</div>';
+  }
+}
+async function claimVouch(idxs){
+  if(!account){ openSheet(); return; }
+  if(!idxs.length) return;
+  try{
+    setVouchStatus("Claiming PLS…");
+    const wd=new ethers.Contract(VOUCH_WITHDRAW, VOUCH_WD_ABI, signer);
+    const tx=await wd.withdraw(idxs, { gasLimit: 400_000n });
+    await tx.wait();
+    setVouchStatus("PLS is in this wallet.","ok");
+    paintVouch(); refresh();
+  }catch(e){
+    let m=e.shortMessage||e.message||"Failed";
+    if(/user rejected|denied/i.test(m)) m="Cancelled.";
+    setVouchStatus(m,"err");
+  }
+}
+
+let hexDayCache=null, hexDayAt=0;
+function hexDayFallback(){ return Math.floor((Date.now()/1000 - 1575331200)/86400); }
+function paintHttDays(day){
+  const mat=httMaturity();
+  const length=stakeLenFor(mat, day);
+  const daysEl=$("httDays"), ends=$("httEnds");
+  if(!daysEl && !ends) return;
+  if(!Number.isFinite(length) || length<1){
+    if(daysEl) daysEl.textContent="this HTT day has passed";
+    if(ends) ends.textContent="HEX day now: "+day;
+  }else if(length>HEX_MAX_DAYS){
+    if(daysEl) daysEl.textContent="longer than HEX max 5555d";
+    if(ends) ends.textContent="HEX day now: "+day;
+  }else{
+    if(daysEl) daysEl.textContent=length+" days";
+    if(ends) ends.textContent="HEX day "+(day+1+length)+" · HTT-"+mat+" (max collateral)";
+  }
+}
+async function hexCurrentDay(){
+  if(hexDayCache!=null && Date.now()-hexDayAt<120_000) return hexDayCache;
+  const fallback=hexDayFallback();
+  const urls=[];
+  try{ (CHAIN.rpcs||[]).forEach(u=>urls.push(u)); }catch(_){}
+  try{ (CHAIN.publicRpcs||[]).forEach(u=>urls.push(u)); }catch(_){}
+  const seen=new Set();
+  for(const url of urls){
+    if(!url || seen.has(url)) continue;
+    seen.add(url);
+    try{
+      const ctrl=new AbortController();
+      const t=setTimeout(()=>ctrl.abort(), 2500);
+      const res=await fetch(url, {
+        method:"POST",
+        headers:{"content-type":"application/json"},
+        body:JSON.stringify({ jsonrpc:"2.0", id:1, method:"eth_call", params:[{ to:HEX_ADDR, data:"0x5c9302c9" }, "latest"] }),
+        signal:ctrl.signal
+      });
+      clearTimeout(t);
+      const j=await res.json();
+      const d=parseInt(j.result, 16);
+      if(Number.isFinite(d) && d>1000 && d<20000){ hexDayCache=d; hexDayAt=Date.now(); return d; }
+    }catch(_){}
+  }
+  hexDayCache=fallback; hexDayAt=Date.now();
+  return fallback;
+}
+function syncHttWalletUi(){
+  const btn=$("httBtn");
+  if(btn) btn.textContent=account ? "Stake HEX into delegated HSI" : "Connect wallet";
+  if($("redBtn")) $("redBtn").textContent=account ? "Redeem HTT" : "Connect wallet";
+}
+function parseHexAmt(){
+  const v=cleanNum($("hexAmt")?.value);
+  if(!v || !(parseFloat(v)>0)) return null;
+  try{ return ethers.parseUnits(v, HEX_DEC); }catch(_){ return null; }
+}
+function parseDays(el){
+  const n=parseInt((el?.value||"").trim(),10);
+  return Number.isFinite(n)?n:NaN;
+}
+function escH(s){
+  return String(s||"").replace(/[&<>"']/g, c => ({
+    "&": "\u0026amp;",
+    "<": "\u0026lt;",
+    ">": "\u0026gt;",
+    '"': "\u0026quot;",
+    "'": "\u0026#39;"
+  }[c]));
+}
+function httMgr(write){
+  return new ethers.Contract(HTT_MANAGER, HTTM_ABI, write ? signer : readProvider);
+}
+function actuatorErr(e){
+  let m=e.shortMessage||e.reason||e.message||"Failed";
+  if(/user rejected|denied/i.test(m)) return "Cancelled.";
+  if(/A000|A019/.test(m)) return "Retire all HTT on this HSI first.";
+  if(/A001/.test(m)) return "Retire amount is more than HTT minted on this stake.";
+  if(/A002/.test(m)) return "Amount is above Actuator extractable for that day.";
+  if(/A003/.test(m)) return "Cannot retire after the HTT redemption day — redeem instead.";
+  if(/A006/.test(m)) return "Collateral index mismatch — reload and retry.";
+  if(/A007/.test(m)) return "Actuator has no HEX waiting. End the backing stake first.";
+  if(/A008/.test(m)) return "Not enough HTT in this wallet.";
+  if(/A009/.test(m)) return "Too early — wait until that HEX day.";
+  if(/A012/.test(m)) return "HSI index changed. Reload the list.";
+  if(/A013/.test(m)) return "This HSI is already minted against a different HTT day.";
+  if(/A014|A045|A046|A047|A017/.test(m)) return "Actuator rejected that redemption day (extractable is 0 or out of range).";
+  if(/A016/.test(m)) return "HEX transfer failed — approve Actuator and retry.";
+  if(/A018/.test(m)) return "No HTT minted on this stake — use End stake.";
+  if(/A022/.test(m)) return "Too early to end a collateralized stake (or not the owner).";
+  if(/A023|A024/.test(m)) return "Amount must be greater than 0.";
+  if(/insufficient funds/i.test(m)) return "Not enough PLS for gas.";
+  return m;
+}
+function setHttStatus(m,c=""){ const s=$("httStatus"); if(s){ s.textContent=m; s.className="status "+c; } }
+
+function stakeLenFor(mat, day){
+  if(!mat) return NaN;
+  return mat - day - 1;
+}
+
+async function paintHttPreview(){
+  const mat=httMaturity();
+  syncHttWalletUi();
+  paintHttDays(hexDayCache!=null ? hexDayCache : hexDayFallback());
+  if(account){
+    try{
+      const hx=new ethers.Contract(HEX_ADDR, ERC20_ABI, readProvider);
+      $("hexBal").textContent="Balance: "+fmt(await hx.balanceOf(account), HEX_DEC, 4)+" HEX";
+    }catch(_){ $("hexBal").textContent=""; }
+  }else if($("hexBal")) $("hexBal").textContent="";
+  hexCurrentDay().then(d=>paintHttDays(d)).catch(()=>{});
+}
+
+async function loadHsiList(){
+  const box=$("httList");
+  if(!box) return;
+  if(!account){ box.innerHTML='<div class="hsi-empty">Connect to load delegated HSIs.</div>'; return; }
+  try{
+    const mgr=httMgr(false);
+    const n=Number(await mgr.hsiCount(account));
+    if(!n){ box.innerHTML='<div class="hsi-empty">No delegated HSIs yet. Stake HEX above.</div>'; return; }
+    const day=await hexCurrentDay();
+    const vaultMat=httMaturity();
+    const cards=[];
+    for(let i=0;i<n;i++){
+      let staked, locked, daysN, minted, colMat, hsi;
+      try{
+        const r=await mgr.shareLists(account, i);
+        staked=r[1]; locked=Number(r[3]); daysN=Number(r[4]); minted=r[5]; colMat=Number(r[6]); hsi=r[7];
+      }catch(_){ continue; }
+      const endDay=locked+daysN;
+      const served=day>=endDay;
+      const match=endDay===vaultMat && (!colMat || colMat===vaultMat);
+      cards.push(
+        '<div class="hsi-card" data-idx="'+i+'" data-hsi="'+escH(hsi)+'" data-end="'+endDay+'" data-colmat="'+colMat+'" data-minted="'+minted.toString()+'">'+
+          '<div class="row"><span>HEX staked</span><span>'+escH(fmt(staked, HEX_DEC, 4))+' HEX</span></div>'+
+          '<div class="row"><span>Stake</span><span>HEX day '+locked+' \u2192 '+endDay+' ('+daysN+'d)'+(served?' · served':'')+'</span></div>'+
+          '<div class="row"><span>HTT minted</span><span>'+escH(fmt(minted, HEX_DEC, 4))+(colMat?(' HTT-'+colMat):(' of HTT-'+endDay))+'</span></div>'+
+          '<div class="row"><span>Extractable / available HTT-'+endDay+'</span><span data-ex>—</span></div>'+
+          (match
+            ? '<div class="mintrow"><input data-amt inputmode="decimal" placeholder="max available"><button type="button" data-act="mint">Mint available HTT-'+vaultMat+'</button></div>'
+            : '<div class="hsi-empty" style="padding:6px 0 0">'+(endDay!==vaultMat?('This HSI ends day '+endDay+' — open HEXstr-'+endDay+' to mint at max collateral.'):('Locked to HTT-'+colMat+' until retired.'))+'</div>')+
+          '<div class="acts">'+
+            '<button type="button" class="ghost" data-act="hdrn">Mint HDRN</button>'+
+            '<button type="button" class="ghost" data-act="retire">Retire HTT</button>'+
+            '<button type="button" class="warn" data-act="end">End stake</button>'+
+            '<button type="button" class="ghost" data-act="revoke">Revoke</button>'+
+          '</div>'+
+          '<div class="addr">'+escH(hsi)+'</div>'+
+        '</div>'
+      );
+    }
+    box.innerHTML=cards.length?cards.join(""):'<div class="hsi-empty">No readable HSIs.</div>';
+    box.querySelectorAll(".hsi-card").forEach(card=>quoteCard(card).catch(()=>{}));
+  }catch(_){
+    box.innerHTML='<div class="hsi-empty">Couldn\u2019t read Actuator stakes.</div>';
+  }
+}
+
+async function quoteCard(card){
+  const exEl=card.querySelector("[data-ex]");
+  const amtInp=card.querySelector("[data-amt]");
+  const hsi=card.dataset.hsi;
+  const endDay=Number(card.dataset.end||"0");
+  const minted=BigInt(card.dataset.minted||"0");
+  const mat=endDay;
+  if(!mat){ if(exEl) exEl.textContent="—"; return; }
+  try{
+    const extractable=await httMgr(false).getExtractableAmount(hsi, mat);
+    const avail=extractable>minted?extractable-minted:0n;
+    if(exEl) exEl.textContent=fmt(extractable, HEX_DEC, 4)+" / "+fmt(avail, HEX_DEC, 4);
+    if(amtInp) amtInp.value=commaNum(ethers.formatUnits(avail, HEX_DEC), 4);
+    card.dataset.avail=avail.toString();
+  }catch(e){
+    if(exEl) exEl.textContent="not extractable yet";
+    card.dataset.avail="0";
+  }
+}
+
+async function collateralIndexOf(mgr, maturity, hsi){
+  if(!maturity) return -1;
+  let start=0;
+  while(start<4000){
+    const chunk=await mgr.hsiListRange(maturity, start, start+50);
+    for(let i=0;i<chunk.length;i++){
+      if(String(chunk[i]).toLowerCase()===String(hsi).toLowerCase()) return start+i;
+    }
+    if(chunk.length<50) break;
+    start+=50;
+  }
+  return -1;
+}
+async function hedronIndexOf(mgr, hsi){
+  const hi=await mgr.findHedronHSIIndex(hsi);
+  return hi;
+}
+
+async function loadHttHoldings(){
+  const wrap=$("httRedeemWrap"), box=$("httHold"), custom=$("httRedeemCustom");
+  const ban=$("hexClaimBanner");
+  if(!wrap||!box) return;
+  const day=await hexCurrentDay();
+  if(day<3000){
+    wrap.style.display="none";
+    if(ban) ban.style.display="none";
+    return;
+  }
+  wrap.style.display="";
+  if(custom) custom.style.display=day>=7000?"":"none";
+  if(!account){
+    box.innerHTML='<div class="hsi-empty">Connect to load redeemable HTT.</div>';
+    if(ban) ban.style.display="none";
+    return;
+  }
+  try{
+    const mgr=httMgr(false);
+    const due=HTT_KNOWN.filter(m=>m<=day);
+    const extra=parseDays($("redMat"));
+    if(day>=7000 && Number.isFinite(extra) && extra>=3000 && extra<=day && !due.includes(extra)) due.push(extra);
+    due.sort((a,b)=>a-b);
+    const cards=[];
+    let bannerTake=0n, bannerMat=0;
+    const vaultMat=httMaturity();
+    for(const m of due){
+      const known=(VAULTS.find(v=>Number(String(v.assetSym||"").replace(/^HTT-/i,""))===m)||{}).assetAddr;
+      let hexBal=0n, token=known||ethers.ZeroAddress;
+      try{
+        const info=await mgr.maturityToInfo(m);
+        hexBal=info[0];
+        if(info[1] && info[1]!==ethers.ZeroAddress) token=info[1];
+      }catch(_){}
+      if(!token || token===ethers.ZeroAddress) continue;
+      let bag=0n;
+      try{ bag=await new ethers.Contract(token, ERC20_ABI, readProvider).balanceOf(account); }catch(_){}
+      if(bag===0n && hexBal===0n) continue;
+      const can=bag>0n && hexBal>0n;
+      const take=bag<hexBal?bag:hexBal;
+      if(can && m===vaultMat){ bannerTake=take; bannerMat=m; }
+      cards.push(
+        '<div class="hsi-card">'+
+          '<div class="row"><span>HTT-'+m+'</span><span>HEX day '+m+'</span></div>'+
+          '<div class="row"><span>Your HTT</span><span>'+escH(fmt(bag, HEX_DEC, 4))+'</span></div>'+
+          '<div class="row"><span>HEX waiting in Actuator</span><span>'+escH(fmt(hexBal, HEX_DEC, 4))+' HEX</span></div>'+
+          (can
+            ? '<div class="mintrow"><input data-redamt inputmode="decimal" value="'+escH(ethers.formatUnits(take, HEX_DEC))+'"><button type="button" data-redeem="'+m+'" data-max="'+take.toString()+'">Redeem HEX</button></div>'
+            : '<div class="hsi-empty" style="padding:6px 0 0">'+(bag===0n? 'None in this wallet.' : 'No HEX in Actuator yet — backing stakes must be ended first.')+'</div>')+
+        '</div>'
+      );
+    }
+    box.innerHTML=cards.length?cards.join(""):'<div class="hsi-empty">No redeemable HTT in this wallet for days that have arrived.</div>';
+    if(ban){
+      if(bannerTake>0n){
+        ban.style.display="";
+        if($("hexClaimAmt")) $("hexClaimAmt").textContent=fmt(bannerTake, HEX_DEC, 4);
+      }else ban.style.display="none";
+    }
+  }catch(_){
+    box.innerHTML='<div class="hsi-empty">Couldn\u2019t read HTT holdings.</div>';
+  }
+}
+
+let hexUiTab="htt";
+let hPay="HEX", vPay="PLS";
+function paySpec(kind){
+  if(kind==="HEX") return { kind:"HEX", addr:HEX_ADDR, dec:HEX_DEC, native:false, sym:"HEX" };
+  return { kind:"PLS", addr:WPLS, dec:18, native:true, sym:"PLS" };
+}
+function setHexUiTab(t){
+  if(t==="pos") t="htt";
+  hexUiTab=t;
+  [["hexTabBtnHtt","htt","hexPaneHtt"],["hexTabBtnHsi","hsi","hexPaneHsi"]].forEach(([btn,key,pane])=>{
+    if($(btn)) $(btn).setAttribute("aria-selected", hexUiTab===key?"true":"false");
+    if($(pane)) $(pane).style.display=hexUiTab===key?"":"none";
+  });
+  if(hexUiTab==="htt") paintHexReco();
+  if(hexUiTab==="hsi"){ paintHttPreview(); loadHsiList(); loadHttHoldings(); }
+}
+function setPay(which, kind){
+  if(which!=="h") return;
+  hPay=kind==="PLS"?"PLS":"HEX";
+  const sel=$("hPaySel");
+  if(sel && sel.value!==hPay) sel.value=hPay;
+  quoteBuy("h");
+}
+async function paintVplsReco(rateBn){
+  const recT=$("vRecT"), recD=$("vRecD");
+  if(!recT) return;
+  const rate=rateBn>0n ? Number(ethers.formatUnits(rateBn, PLS_DEC)) : 0;
+  let mkt=null;
+  try{ mkt=await pairPrice(VOUCH_VPLS, 18, WPLS, 18); }catch(_){}
+  if($("vCostStake")) $("vCostStake").textContent=rate? (rate.toFixed(4)+" PLS"):"—";
+  if($("vCostBuy")) $("vCostBuy").textContent=mkt!=null? (mkt.toFixed(4)+" PLS"):"no pool";
+  if($("vRowStake")) $("vRowStake").classList.remove("pick");
+  if($("vRowBuy")) $("vRowBuy").classList.remove("pick");
+  if(mkt!=null && rate>0 && mkt < rate*0.98){
+    recT.textContent="Buy vPLS";
+    recD.textContent="vPLS is cheaper on PulseX than staking through Vouch right now ("+((1-mkt/rate)*100).toFixed(1)+"% discount to the stake rate). Stake here if you want yield; swap PLS → PLSstr above if you just want the vault token.";
+    if($("vRowBuy")) $("vRowBuy").classList.add("pick");
+  }else{
+    recT.textContent="Stake PLS";
+    recD.textContent=mkt!=null && rate>0
+      ? "Staking through Vouch is the cheaper (or similar) way to get vPLS. Vouch minimum applies. Buy on PulseX if you want less than the minimum."
+      : "Stake PLS through Vouch for vPLS, then deposit it above. You can also buy vPLS on PulseX.";
+    if($("vRowStake")) $("vRowStake").classList.add("pick");
+  }
+}
+async function paintHexReco(){
+  if(!cur) return;
+  const mat=httMaturity();
+  const day=hexDayCache!=null?hexDayCache:hexDayFallback();
+  const left=mat-day;
+  if($("hexLeft")) $("hexLeft").textContent=left>0? (left+" days"):"HEX day has arrived";
+  let mkt=null;
+  try{ mkt=await pairPrice(cur.cfg.assetAddr, cur.aDec||8, HEX_ADDR, HEX_DEC); }catch(_){}
+  if($("hexMkt")) $("hexMkt").textContent=mkt!=null? (mkt.toFixed(4)+" HEX"):"no HTT/HEX pool yet";
+  const disc=mkt!=null? (1-mkt)*100 : null;
+  if($("hexDisc")){
+    if(disc==null) $("hexDisc").textContent="—";
+    else if(disc>=0) $("hexDisc").textContent=disc.toFixed(1)+"% to 1 HEX";
+    else $("hexDisc").textContent="+"+(-disc).toFixed(1)+"% premium to 1 HEX";
+  }
+  const recT=$("hexRecT"), recD=$("hexRecD");
+  if($("hexRowBuy")) $("hexRowBuy").classList.remove("pick");
+  if($("hexRowHsi")) $("hexRowHsi").classList.remove("pick");
+  if(mkt!=null && mkt<0.98){
+    if(recT) recT.textContent="Buy "+cur.cfg.assetSym;
+    if(recD) recD.textContent="HTT is trading at a discount to 1 HEX. Buying on PulseX and depositing is simpler than creating an HSI, and you keep the discount.";
+    if($("hexRowBuy")) $("hexRowBuy").classList.add("pick");
+  }else if(mkt!=null && mkt>=1){
+    if(recT) recT.textContent="Create an HSI or still buy";
+    if(recD) recD.textContent="HTT is at or above 1 HEX. Creating your own max-collateral HSI can make more sense if you already hold HEX. Buying is still the simpler path.";
+    if($("hexRowHsi")) $("hexRowHsi").classList.add("pick");
+  }else{
+    if(recT) recT.textContent="Buy "+cur.cfg.assetSym+", then deposit";
+    if(recD) recD.textContent="You don't need to stake HEX to use this vault. Buy HTT, then mint "+cur.cfg.token+" above.";
+    if($("hexRowBuy")) $("hexRowBuy").classList.add("pick");
+  }
+  quoteBuy("h");
+}
+function swapTokenLabel(x){
+  const l=String(x).toLowerCase();
+  if(l===WPLS.toLowerCase()) return "WPLS";
+  if(l===HEX_ADDR.toLowerCase()) return "HEX";
+  if(l===VOUCH_VPLS.toLowerCase()) return "vPLS";
+  if(cur && l===cur.cfg.vault.toLowerCase()) return cur.cfg.token;
+  if(cur && l===cur.cfg.assetAddr.toLowerCase()) return cur.cfg.assetSym;
+  return "token";
+}
+function swapCandidatePaths(tokenIn, tokenOut){
+  const a=tokenIn.toLowerCase(), b=tokenOut.toLowerCase();
+  if(a===b) return [];
+  const paths=[];
+  const add=nodes=>{
+    const n=nodes.map(x=>x.toLowerCase());
+    if(new Set(n).size!==n.length) return;
+    paths.push(nodes);
+  };
+  add([tokenIn, tokenOut]);
+  if(a!==WPLS.toLowerCase() && b!==WPLS.toLowerCase()) add([tokenIn, WPLS, tokenOut]);
+  if(a!==HEX_ADDR.toLowerCase() && b!==HEX_ADDR.toLowerCase()) add([tokenIn, HEX_ADDR, tokenOut]);
+  if(a!==WPLS.toLowerCase() && a!==HEX_ADDR.toLowerCase() && b!==WPLS.toLowerCase() && b!==HEX_ADDR.toLowerCase()){
+    add([tokenIn, WPLS, HEX_ADDR, tokenOut]);
+    add([tokenIn, HEX_ADDR, WPLS, tokenOut]);
+  }
+  return paths;
+}
+async function quoteBestSwap(tokenIn, tokenOut, amt){
+  const paths=swapCandidatePaths(tokenIn, tokenOut);
+  let best=null;
+  for(const router of [PULSEX_V2_ROUTER, PULSEX_V1_ROUTER]){
+    const rc=new ethers.Contract(router, ROUTER_ABI, readProvider);
+    for(const path of paths){
+      try{
+        const amounts=await rc.getAmountsOut(amt, path);
+        const got=amounts[amounts.length-1];
+        if(got>0n && (!best || got>best.got)){
+          const ver=router.toLowerCase()===PULSEX_V2_ROUTER.toLowerCase()?"v2":"v1";
+          best={ router, path, got, amounts, via:"PulseX "+ver+" · "+path.map(swapTokenLabel).join(" → ") };
+        }
+      }catch(_){}
+    }
+  }
+  return best;
+}
+function vaultSwapSpec(sym){
+  if(!cur || !sym) return null;
+  if(sym==="PLS") return {sym:"PLS", addr:WPLS, dec:18, native:true};
+  if(sym==="WPLS") return {sym:"WPLS", addr:WPLS, dec:18, native:false};
+  if(sym==="HEX") return {sym:"HEX", addr:HEX_ADDR, dec:HEX_DEC, native:false};
+  if(sym===cur.cfg.token) return {sym:cur.cfg.token, addr:cur.cfg.vault, dec:cur.tDec, native:false};
+  if(sym===cur.cfg.assetSym) return {sym:cur.cfg.assetSym, addr:cur.cfg.assetAddr, dec:cur.aDec, native:false};
+  return null;
+}
+function vaultSwapOptions(){
+  if(!cur) return ["PLS"];
+  const tok=cur.cfg.token, asset=cur.cfg.assetSym;
+  if(cur.cfg.key==="PLSstr") return ["PLS","WPLS",asset,tok];
+  return ["HEX","PLS","WPLS",asset,tok];
+}
+function fillVaultSwapSelects(){
+  if(!cur) return;
+  const opts=vaultSwapOptions();
+  const pay=$("xPaySel"), got=$("xGotSel");
+  if(!pay||!got) return;
+  const tok=cur.cfg.token;
+  const defPay=cur.cfg.key==="PLSstr"?"PLS":"HEX";
+  const reset=swapVaultKey!==cur.cfg.key;
+  swapVaultKey=cur.cfg.key;
+  const html=sel=>opts.map(o=>'<option value="'+o+'"'+(o===sel?" selected":"")+'>'+o+'</option>').join("");
+  const payV=(!reset && opts.includes(pay.value))?pay.value:defPay;
+  let gotV=(!reset && opts.includes(got.value))?got.value:tok;
+  if(payV===gotV) gotV = payV===tok ? defPay : tok;
+  pay.innerHTML=html(payV);
+  got.innerHTML=html(gotV);
+}
+let swapVaultKey=null;
+let swapSlipBps=100;
+function paintSlipChips(el, curBps, onPick){
+  if(!el) return;
+  el.innerHTML=[50,100,300,500,1000,1500].map(b=>{
+    const lab=(b/100)+"%";
+    return '<button type="button" class="slipchip'+(b===curBps?" on":"")+'" data-b="'+b+'">'+lab+'</button>';
+  }).join("");
+  el.querySelectorAll("button").forEach(b=>b.onclick=()=>onPick(Number(b.dataset.b)));
+}
+function setEl(id, txt, cls){
+  const e=$(id); if(!e) return;
+  e.textContent=txt;
+  e.classList.remove("warn-ok","warn-mid","warn-bad");
+  if(cls) e.classList.add(cls);
+}
+async function hopReserves(a,b){
+  const al=String(a).toLowerCase(), bl=String(b).toLowerCase();
+  if(cur){
+    for(const p of (cur.cfg.pools||[])){
+      if(!p.address) continue;
+      try{
+        const pc=new ethers.Contract(p.address, PAIR_ABI, readProvider);
+        const [t0,t1]=await Promise.all([pc.token0(), pc.token1()]);
+        const t0l=t0.toLowerCase(), t1l=t1.toLowerCase();
+        if(!((t0l===al&&t1l===bl)||(t0l===bl&&t1l===al))) continue;
+        const [r0,r1]=await pc.getReserves();
+        const aIs0=t0l===al;
+        return { rIn:aIs0?r0:r1, rOut:aIs0?r1:r0, pair:p.address };
+      }catch(_){}
+    }
+  }
+  const info=await findPairInfo(a,b);
+  if(!info) return null;
+  try{
+    const pc=new ethers.Contract(info.pair, PAIR_ABI, readProvider);
+    const [r0,r1]=await pc.getReserves();
+    const t0=(await pc.token0()).toLowerCase();
+    const aIs0=t0===al;
+    return { rIn:aIs0?r0:r1, rOut:aIs0?r1:r0, pair:info.pair };
+  }catch(_){ return null; }
+}
+function tokenDec(addr){
+  const l=String(addr).toLowerCase();
+  if(l===WPLS.toLowerCase()) return 18;
+  if(l===HEX_ADDR.toLowerCase()) return HEX_DEC;
+  if(cur && l===cur.cfg.vault.toLowerCase()) return cur.tDec;
+  if(cur && l===cur.cfg.assetAddr.toLowerCase()) return cur.aDec;
+  return 18;
+}
+async function paintSwapDeal(pfx, pay, got, amt, route){
+  let impact=null;
+  try{
+    const one=10n**BigInt(pay.dec);
+    const probe=(one>0n && one<amt/50n)?one:(amt>1000n?amt/1000n:0n);
+    if(probe>0n){
+      const p=await quoteBestSwap(pay.addr, got.addr, probe);
+      if(p && p.got>0n){
+        const spot=p.got*amt/probe;
+        const nSpot=Number(ethers.formatUnits(spot, got.dec));
+        const nExec=Number(ethers.formatUnits(route.got, got.dec));
+        if(nSpot>0) impact=Math.max(0, (nSpot-nExec)/nSpot*100);
+      }
+    }
+  }catch(_){}
+  const vaultAddr=cur?cur.cfg.vault.toLowerCase():"";
+  const amounts=route.amounts||[amt, route.got];
+  let pick=null;
+  for(let i=0;i<route.path.length-1;i++){
+    const a=route.path[i], b=route.path[i+1];
+    const hop=await hopReserves(a,b);
+    if(!hop||hop.rIn===0n) continue;
+    const ain=amounts[i]||amt;
+    const share=Number(ain)/Number(hop.rIn)*100;
+    const isVault=a.toLowerCase()===vaultAddr||b.toLowerCase()===vaultAddr;
+    const cand={hop,a,b,ain,share,isVault,i};
+    if(isVault){ pick=cand; break; }
+    if(!pick || share>pick.share) pick=cand;
+  }
+  if(pick){
+    const inSym=swapTokenLabel(pick.a), outSym=swapTokenLabel(pick.b);
+    const inDec=tokenDec(pick.a), outDec=tokenDec(pick.b);
+    const hops=route.path.length-1;
+    setEl(pfx+"SwapPool", fmt(pick.hop.rIn, inDec, 2)+" "+inSym+" / "+fmt(pick.hop.rOut, outDec, 2)+" "+outSym+(hops>1?" · thin hop":""));
+    const spotPx=Number(ethers.formatUnits(pick.hop.rIn, inDec))/Number(ethers.formatUnits(pick.hop.rOut, outDec));
+    const execPx=Number(ethers.formatUnits(amt, pay.dec))/Number(ethers.formatUnits(route.got, got.dec));
+    setEl(pfx+"SwapSpot", isFinite(spotPx)?("1 "+outSym+" = "+spotPx.toFixed(4)+" "+inSym):"—");
+    setEl(pfx+"SwapExec", isFinite(execPx)?("1 "+got.sym+" = "+execPx.toFixed(4)+" "+pay.sym):"—");
+    setEl(pfx+"SwapShare", isFinite(pick.share)?(pick.share.toFixed(1)+"% of "+inSym+" in this pool"):"—", pick.share>20?"warn-bad":pick.share>5?"warn-mid":"warn-ok");
+    setEl(pfx+"SwapSafe", "under ~"+fmt(pick.hop.rIn*2n/100n, inDec, 2)+" "+inSym);
+  }else{
+    setEl(pfx+"SwapPool","—"); setEl(pfx+"SwapSpot","—"); setEl(pfx+"SwapExec","—"); setEl(pfx+"SwapShare","—"); setEl(pfx+"SwapSafe","—");
+  }
+  const impCls=impact==null?"":impact>10?"warn-bad":impact>3?"warn-mid":"warn-ok";
+  setEl(pfx+"SwapImp", impact==null?"—":impact.toFixed(2)+"%", impCls);
+  let vs="—", vsCls="";
+  if(cur && lastBacking && (got.addr.toLowerCase()===cur.cfg.vault.toLowerCase() || pay.addr.toLowerCase()===cur.cfg.vault.toLowerCase())){
+    const buying=got.addr.toLowerCase()===cur.cfg.vault.toLowerCase();
+    const oth=buying?pay:got;
+    const tokAmt=buying?route.got:amt;
+    const othAmt=buying?amt:route.got;
+    const per=Number(ethers.formatUnits(othAmt, oth.dec))/Number(ethers.formatUnits(tokAmt, cur.tDec));
+    const othL=oth.addr.toLowerCase();
+    const isPls=othL===WPLS.toLowerCase();
+    const isHex=othL===HEX_ADDR.toLowerCase();
+    const isAsset=othL===cur.cfg.assetAddr.toLowerCase();
+    const isDefault=cur.cfg.key==="PLSstr"?isPls: (/^HEXstr/i.test(cur.cfg.key)?(isHex||isAsset):isAsset);
+    if(isFinite(per) && isDefault){
+      let fair=lastBacking, fairSym=cur.cfg.assetSym;
+      if(isPls){
+        if(!(lastVplsRate>0)){
+          try{
+            const r=await new ethers.Contract(VOUCH_VPLS, VPLS_ABI, readProvider).getRate();
+            if(r>0n) lastVplsRate=Number(ethers.formatUnits(r, PLS_DEC));
+          }catch(_){}
+        }
+        if(lastVplsRate>0){ fair=lastBacking*lastVplsRate; fairSym="PLS"; }
+      }
+      const mint=fair*1.045;
+      const diff=(per/fair-1)*100;
+      vs=per.toFixed(4)+" "+oth.sym+" / "+cur.cfg.token+" · backing ~"+fair.toFixed(4)+" "+fairSym+" · mint ~"+mint.toFixed(4);
+      if(buying && diff>8){ vs+=" · "+diff.toFixed(0)+"% over backing — bad fill"; vsCls="warn-bad"; }
+      else if(buying && diff>2){ vs+=" · "+diff.toFixed(1)+"% over backing"; vsCls="warn-mid"; }
+      else if(!buying && diff<-8){ vs+=" · selling well below backing"; vsCls="warn-mid"; }
+      else { vs+=" · in range"; vsCls="warn-ok"; }
+    }else if(isFinite(per)){
+      vs=per.toFixed(4)+" "+oth.sym+" / "+cur.cfg.token+" · default pair is "+(cur.cfg.key==="PLSstr"?"PLS":"HEX")+" ↔ "+cur.cfg.token;
+    }
+  }
+  setEl(pfx+"SwapVs", vs, vsCls);
+  const warn=$(pfx+"SwapWarn");
+  const btn=$(pfx+"SwapBtn");
+  const thinHop=pick && pick.share>5;
+  const hops=route.path.length-1;
+  if(impact!=null && impact>15){
+    if(warn) warn.textContent="Thin pool. This size moves price ~"+impact.toFixed(0)+"%. Stay under the ~2% size on the pool above or you take this fill.";
+    if(btn && account) btn.textContent="Swap anyway · "+impact.toFixed(0)+"% impact";
+  }else if(thinHop && hops>1){
+    if(warn) warn.textContent="Routed through a thin "+swapTokenLabel(pick.a)+"/"+swapTokenLabel(pick.b)+" hop ("+pick.share.toFixed(1)+"% of that pool). Default "+(cur.cfg.key==="PLSstr"?"PLS":"HEX")+" pair is the direct pool.";
+    if(btn && account) btn.textContent="Swap anyway · thin hop";
+  }else if(impact!=null && impact>swapSlipBps/100){
+    if(warn) warn.textContent="Impact "+impact.toFixed(1)+"% is larger than your "+(swapSlipBps/100)+"% slip buffer. Cut the size or you take the quoted price.";
+    if(btn && account) btn.textContent="Swap anyway · "+impact.toFixed(1)+"% impact";
+  }else if(impact!=null && impact>5){
+    if(warn) warn.textContent="Noticeable impact on a thin pool. Smaller size keeps more of the quoted price.";
+    if(btn && account) btn.textContent="Swap on PulseX";
+  }else{
+    if(warn) warn.textContent="Pools here can be thin. Check impact on the pool above before you sign. PulseStrategy does not operate PulseX.";
+    if(btn && account) btn.textContent="Swap on PulseX";
+  }
+  const min=route.got*BigInt(10000-swapSlipBps)/10000n;
+  setEl(pfx+"SwapMin", fmt(min, got.dec, 4)+" "+got.sym);
+}
+
+async function quoteVaultSwap(){
+  if(!cur || !$("xSwapIn")) return;
+  fillVaultSwapSelects();
+  const pay=vaultSwapSpec($("xPaySel")?.value), got=vaultSwapSpec($("xGotSel")?.value);
+  const btn=$("xSwapBtn");
+  if(!account){ if(btn) btn.textContent="Connect wallet"; }
+  else if(btn) btn.textContent="Swap on PulseX";
+  if(pay && account){
+    try{
+      const bag=pay.native? await readProvider.getBalance(account)
+        : await new ethers.Contract(pay.addr, ERC20_ABI, readProvider).balanceOf(account);
+      if($("xSwapBal")) $("xSwapBal").textContent="Balance: "+fmt(bag, pay.dec, 4)+" "+pay.sym;
+    }catch(_){ if($("xSwapBal")) $("xSwapBal").textContent=""; }
+  }else if($("xSwapBal")) $("xSwapBal").textContent="";
+  const raw=cleanNum($("xSwapIn")?.value);
+  if(!raw || !(parseFloat(raw)>0) || !pay || !got){
+    if($("xSwapOut")) $("xSwapOut").value="";
+    if($("xSwapVia")) $("xSwapVia").textContent="—";
+    if($("xSwapMin")) $("xSwapMin").textContent="—";
+    ["xSwapPool","xSwapSpot","xSwapExec","xSwapImp","xSwapShare","xSwapVs","xSwapSafe"].forEach(id=>{ if($(id)) $(id).textContent="—"; });
+    return;
+  }
+  if(pay.addr.toLowerCase()===got.addr.toLowerCase()){
+    const wrap=pay.native!==got.native;
+    if($("xSwapVia")) $("xSwapVia").textContent=wrap?"WPLS wrap · 1 PLS = 1 WPLS":"Same token";
+    if(wrap){
+      if($("xSwapOut")) $("xSwapOut").value=raw;
+      if($("xSwapMin")) $("xSwapMin").textContent=raw+" "+got.sym;
+      let amt; try{ amt=ethers.parseUnits(raw, 18);}catch(_){return;}
+      window._xSwap={ wrap:true, amt, pay, got, min:amt };
+    }else if($("xSwapOut")) $("xSwapOut").value="";
+    return;
+  }
+  let amt; try{ amt=ethers.parseUnits(raw, pay.dec);}catch(_){return;}
+  try{
+    const route=await quoteBestSwap(pay.addr, got.addr, amt);
+    if(!route){ if($("xSwapVia")) $("xSwapVia").textContent="no PulseX path"; if($("xSwapOut")) $("xSwapOut").value=""; return; }
+    if($("xSwapOut")) $("xSwapOut").value=commaNum(ethers.formatUnits(route.got, got.dec), 6);
+    if($("xSwapVia")) $("xSwapVia").textContent=route.via+(pay.native?" (PLS)":"");
+    const min=route.got*BigInt(10000-swapSlipBps)/10000n;
+    if($("xSwapMin")) $("xSwapMin").textContent=fmt(min, got.dec, 4)+" "+got.sym;
+    window._xSwap={ route, amt, min, pay, got };
+    await paintSwapDeal("x", pay, got, amt, route);
+  }catch(_){ if($("xSwapOut")) $("xSwapOut").value=""; }
+}
+async function execVaultSwap(){
+  if(!account){ openSheet(); return; }
+  const btn=$("xSwapBtn"); if(btn) btn.disabled=true;
+  const setH=(m,c)=>{ setStatus(m,c||""); };
+  try{
+    await quoteVaultSwap();
+    const s=window._xSwap;
+    if(!s||!s.amt){ setH("Enter an amount.","err"); if(btn) btn.disabled=false; return; }
+    if(s.wrap){
+      const w=new ethers.Contract(WPLS, ["function deposit() payable","function withdraw(uint256)"], signer);
+      setH(s.pay.native?"Wrapping PLS…":"Unwrapping WPLS…");
+      const tx=s.pay.native ? await w.deposit({value:s.amt, gasLimit:80_000n}) : await w.withdraw(s.amt,{gasLimit:80_000n});
+      await tx.wait();
+      setH(s.got.sym+" in this wallet.","ok");
+      $("xSwapIn").value=""; quoteVaultSwap(); refresh();
+      if(btn) btn.disabled=false; return;
+    }
+    const r=new ethers.Contract(s.route.router, ROUTER_ABI, signer);
+    if(!s.pay.native){
+      const tok=new ethers.Contract(s.pay.addr, ERC20_ABI, signer);
+      const allow=await tok.allowance(account, s.route.router);
+      if(allow<s.amt){
+        setH("Approve "+s.pay.sym+" for PulseX…");
+        if(btn){ btn.textContent="Approve "+s.pay.sym; btn.classList.add("approve"); }
+        const txA=await tok.approve(s.route.router, ethers.MaxUint256);
+        await txA.wait();
+        if(btn) btn.classList.remove("approve");
+      }
+    }
+    setH("Swapping "+s.pay.sym+" → "+s.got.sym+"…");
+    if(btn) btn.textContent="Confirm swap";
+    const dl=BigInt(Math.floor(Date.now()/1000)+1200);
+    const tx=s.pay.native
+      ? await r.swapExactETHForTokens(s.min, s.route.path, account, dl, { value:s.amt, gasLimit: 800_000n })
+      : s.got.native
+        ? await r.swapExactTokensForETH(s.amt, s.min, s.route.path, account, dl, { gasLimit: 800_000n })
+        : await r.swapExactTokensForTokens(s.amt, s.min, s.route.path, account, dl, { gasLimit: 800_000n });
+    await tx.wait();
+    setH(s.got.sym+" in this wallet.","ok");
+    $("xSwapIn").value=""; quoteVaultSwap(); refresh();
+  }catch(e){
+    let m=e.shortMessage||e.message||"Failed";
+    if(/user rejected|denied/i.test(m)) m="Cancelled.";
+    if(/INSUFFICIENT_OUTPUT|slippage/i.test(m)) m="Price moved — try again.";
+    setH(m,"err");
+  }
+  if(btn){ btn.disabled=false; btn.classList.remove("approve"); quoteVaultSwap(); }
+}
+async function maxVaultSwap(){
+  if(!account){ openSheet(); return; }
+  const pay=vaultSwapSpec($("xPaySel")?.value); if(!pay) return;
+  try{
+    let bag=pay.native ? await readProvider.getBalance(account)
+      : await new ethers.Contract(pay.addr, ERC20_ABI, readProvider).balanceOf(account);
+    if(pay.native){ const gas=ethers.parseEther("50"); if(bag>gas) bag-=gas; }
+    $("xSwapIn").value=commaNum(ethers.formatUnits(bag, pay.dec), 4);
+    quoteVaultSwap();
+  }catch(_){}
+}
+async function quoteBuy(which){
+  const spec=paySpec(which==="h"?hPay:vPay);
+  const tokenOut=which==="h"?(cur&&cur.cfg.assetAddr):VOUCH_VPLS;
+  const outDec=which==="h"?(cur&&cur.aDec||8):18;
+  const outSym=which==="h"?(cur?cur.cfg.assetSym:"HTT"):"vPLS";
+  const pfx=which==="h"?"h":"v";
+  const outEl=$(pfx+"SwapOut"), minEl=$(pfx+"SwapMin"), viaEl=$(pfx+"SwapVia"), btn=$(pfx+"SwapBtn"), balEl=$(pfx+"SwapBal");
+  if(account && btn) btn.textContent="Buy "+outSym;
+  else if(btn) btn.textContent="Connect wallet";
+  if(account){
+    try{
+      const bag=spec.native ? await readProvider.getBalance(account)
+        : await new ethers.Contract(spec.addr, ERC20_ABI, readProvider).balanceOf(account);
+      if(balEl) balEl.textContent="Balance: "+fmt(bag, spec.dec, 4)+" "+spec.sym;
+    }catch(_){ if(balEl) balEl.textContent=""; }
+  }else if(balEl) balEl.textContent="";
+  const raw=($(pfx+"SwapIn")?.value||"").trim();
+  if(!raw || !(parseFloat(raw)>0) || !tokenOut){
+    if(outEl) outEl.textContent="—";
+    if(minEl) minEl.textContent="—";
+    return;
+  }
+  let amt;
+  try{ amt=ethers.parseUnits(raw, spec.dec); }catch(_){ return; }
+  try{
+    const route=await quoteBestSwap(spec.addr, tokenOut, amt);
+    if(!route){ if(outEl) outEl.textContent="no PulseX path"; if(viaEl) viaEl.textContent="—"; return; }
+    if(viaEl) viaEl.textContent=route.via+(spec.native?" (PLS)":"");
+    const got=route.got;
+    if(outEl) outEl.textContent=fmt(got, outDec, 4)+" "+outSym;
+    if(minEl) minEl.textContent=fmt(got*99n/100n, outDec, 4);
+    window["_"+which+"Swap"]={ route, amt, min:got*99n/100n, spec, outSym };
+  }catch(_){ if(outEl) outEl.textContent="—"; }
+}
+async function execBuy(which){
+  if(!account){ openSheet(); return; }
+  const pfx=which==="h"?"h":"v";
+  const btn=$(pfx+"SwapBtn");
+  const setH=which==="h"
+    ? (m,c)=>{ const s=$("hSwapStatus"); if(s){ s.textContent=m; s.className="status "+(c||""); } }
+    : setVouchStatus;
+  if(btn) btn.disabled=true;
+  try{
+    await quoteBuy(which);
+    const s=window["_"+which+"Swap"];
+    if(!s||!s.amt){ setH("Enter an amount.","err"); if(btn) btn.disabled=false; return; }
+    const r=new ethers.Contract(s.route.router, ROUTER_ABI, signer);
+    if(!s.spec.native){
+      const tok=new ethers.Contract(s.spec.addr, ERC20_ABI, signer);
+      const allow=await tok.allowance(account, s.route.router);
+      if(allow<s.amt){
+        setH("Approve "+s.spec.sym+" for PulseX…");
+        if(btn){ btn.textContent="Approve "+s.spec.sym; btn.classList.add("approve"); }
+        const txA=await tok.approve(s.route.router, ethers.MaxUint256);
+        await txA.wait();
+        if(btn) btn.classList.remove("approve");
+      }
+    }
+    setH("Swapping "+s.spec.sym+" → "+s.outSym+" on PulseX…");
+    if(btn) btn.textContent="Confirm swap";
+    const dl=BigInt(Math.floor(Date.now()/1000)+1200);
+    const tx=s.spec.native
+      ? await r.swapExactETHForTokens(s.min, s.route.path, account, dl, { value:s.amt, gasLimit: 800_000n })
+      : await r.swapExactTokensForTokens(s.amt, s.min, s.route.path, account, dl, { gasLimit: 800_000n });
+    await tx.wait();
+    setH(s.outSym+" in this wallet. Deposit it above.","ok");
+    if($(pfx+"SwapIn")) $(pfx+"SwapIn").value="";
+    quoteBuy(which); refresh();
+  }catch(e){
+    let m=e.shortMessage||e.message||"Failed";
+    if(/user rejected|denied/i.test(m)) m="Cancelled.";
+    if(/INSUFFICIENT_OUTPUT|slippage/i.test(m)) m="Price moved — try again.";
+    setH(m,"err");
+  }
+  if(btn){ btn.disabled=false; btn.classList.remove("approve"); }
+  quoteBuy(which);
+}
+async function maxBuy(which){
+  if(!account){ openSheet(); return; }
+  const spec=paySpec(which==="h"?hPay:vPay);
+  const pfx=which==="h"?"h":"v";
+  try{
+    let bag=spec.native ? await readProvider.getBalance(account)
+      : await new ethers.Contract(spec.addr, ERC20_ABI, readProvider).balanceOf(account);
+    if(spec.native){
+      const gas=ethers.parseEther("50");
+      if(bag>gas) bag-=gas;
+    }
+    $(pfx+"SwapIn").value=commaNum(ethers.formatUnits(bag, spec.dec), 4);
+    quoteBuy(which);
+  }catch(_){}
+}
+
+$("vStakeTab") && ($("vStakeTab").onclick=()=>setVouchMode("stake"));
+$("vUnTab") && ($("vUnTab").onclick=()=>setVouchMode("unstake"));
+$("hexTabBtnHtt") && ($("hexTabBtnHtt").onclick=()=>setHexUiTab("htt"));
+$("hexTabBtnHsi") && ($("hexTabBtnHsi").onclick=()=>setHexUiTab("hsi"));
+$("hexClaimGo") && ($("hexClaimGo").onclick=()=>{ setHexUiTab("hsi"); const w=$("httRedeemWrap"); if(w) w.scrollIntoView({behavior:"smooth",block:"start"}); });
+$("xSwapIn") && $("xSwapIn").addEventListener("input", ()=>quoteVaultSwap());
+$("xPaySel") && $("xPaySel").addEventListener("change", ()=>{
+  if($("xPaySel").value===$("xGotSel").value && cur){
+    $("xGotSel").value = $("xPaySel").value===cur.cfg.token ? (cur.cfg.key==="PLSstr"?"PLS":"HEX") : cur.cfg.token;
+  }
+  quoteVaultSwap();
+});
+$("xGotSel") && $("xGotSel").addEventListener("change", ()=>{
+  if($("xPaySel").value===$("xGotSel").value && cur){
+    $("xPaySel").value = $("xGotSel").value===cur.cfg.token ? (cur.cfg.key==="PLSstr"?"PLS":"HEX") : cur.cfg.token;
+  }
+  quoteVaultSwap();
+});
+$("xSwapMax") && ($("xSwapMax").onclick=()=>maxVaultSwap());
+$("xSwapBtn") && ($("xSwapBtn").onclick=()=>execVaultSwap());
+function bindXSlip(){
+  paintSlipChips($("xSlip"), swapSlipBps, b=>{ swapSlipBps=b; bindXSlip(); quoteVaultSwap(); });
+}
+bindXSlip();
+document.querySelectorAll('input[inputmode="decimal"]').forEach(el=>{
+  el.addEventListener("input", ()=>liveComma(el), true);
+});
+$("lpTabAdd") && ($("lpTabAdd").onclick=()=>setLpTab("add"));
+$("lpTabRem") && ($("lpTabRem").onclick=()=>setLpTab("rem"));
+$("lpTokAmt") && $("lpTokAmt").addEventListener("input", ()=>{ lpLast="tok"; quoteLpAdd(); });
+$("lpQuoteAmt") && $("lpQuoteAmt").addEventListener("input", ()=>{ lpLast="quote"; quoteLpAdd(); });
+$("lpQuoteSel") && $("lpQuoteSel").addEventListener("change", ()=>paintLp());
+$("lpTokMax") && ($("lpTokMax").onclick=async()=>{
+  if(!account){ openSheet(); return; }
+  const b=await new ethers.Contract(cur.cfg.vault, ERC20_ABI, readProvider).balanceOf(account);
+  $("lpTokAmt").value=commaNum(ethers.formatUnits(b, cur.tDec), 4); lpLast="tok"; quoteLpAdd();
+});
+$("lpQuoteMax") && ($("lpQuoteMax").onclick=async()=>{
+  if(!account){ openSheet(); return; }
+  const q=lpQuoteSpec(); let b=q.native?await readProvider.getBalance(account):await new ethers.Contract(q.addr, ERC20_ABI, readProvider).balanceOf(account);
+  if(q.native){ const g=ethers.parseEther("50"); if(b>g) b-=g; }
+  $("lpQuoteAmt").value=commaNum(ethers.formatUnits(b, q.dec), 4); lpLast="quote"; quoteLpAdd();
+});
+$("lpPctRow") && $("lpPctRow").querySelectorAll("button").forEach(b=>b.onclick=()=>{ if(!account){ openSheet(); return; } setLpPct(Number(b.dataset.p)); });
+$("lpPctRange") && $("lpPctRange").addEventListener("input", ()=>{ if(!account){ openSheet(); return; } setLpPct($("lpPctRange").value); });
+$("lpAddBtn") && ($("lpAddBtn").onclick=()=>execLpAdd());
+$("lpRemBtn") && ($("lpRemBtn").onclick=()=>execLpRem());
+
+
+$("vPlsAmt") && $("vPlsAmt").addEventListener("input", ()=>paintVouch());
+$("vVplsAmt") && $("vVplsAmt").addEventListener("input", ()=>paintVouch());
+$("vPlsMax") && ($("vPlsMax").onclick=async()=>{
+  if(!account){ openSheet(); return; }
+  try{
+    const b=await readProvider.getBalance(account);
+    const gas=ethers.parseEther("50");
+    $("vPlsAmt").value=commaNum(ethers.formatUnits(b>gas?b-gas:b, PLS_DEC), 4);
+    paintVouch();
+  }catch(_){}
+});
+$("vVplsMax") && ($("vVplsMax").onclick=async()=>{
+  if(!account){ openSheet(); return; }
+  try{
+    const b=await new ethers.Contract(VOUCH_VPLS, VPLS_ABI, readProvider).balanceOf(account);
+    $("vVplsAmt").value=commaNum(ethers.formatUnits(b, PLS_DEC), 4);
+    paintVouch();
+  }catch(_){}
+});
+$("vStakeBtn") && ($("vStakeBtn").onclick=async()=>{
+  if(!account){ openSheet(); return; }
+  const amt=parsePls($("vPlsAmt"));
+  if(!amt || amt<=0n){ setVouchStatus("Enter a PLS amount.","err"); return; }
+  const btn=$("vStakeBtn");
+  btn.disabled=true;
+  try{
+    const depR=new ethers.Contract(VOUCH_DEPOSIT, VOUCH_DEP_ABI, readProvider);
+    const depW=new ethers.Contract(VOUCH_DEPOSIT, VOUCH_DEP_ABI, signer);
+    const [min, en, bal] = await Promise.all([depR.minDeposit(), depR.depositEnabled(), readProvider.getBalance(account)]);
+    if(!en){ setVouchStatus("Vouch deposits are paused.","err"); btn.disabled=false; return; }
+    if(amt<min){ setVouchStatus("Vouch minimum is "+fmt(min, PLS_DEC, 0)+" PLS.","err"); btn.disabled=false; return; }
+    if(bal<amt){ setVouchStatus("Not enough PLS.","err"); btn.disabled=false; return; }
+    setVouchStatus("Staking PLS on Vouch…");
+    btn.textContent="Confirm stake";
+    const tx=await depW.deposit({ value: amt, gasLimit: 400_000n });
+    await tx.wait();
+    setVouchStatus("vPLS in this wallet. Mint PLSstr above.","ok");
+    $("vPlsAmt").value="";
+    paintVouch(); refresh();
+  }catch(e){
+    let m=e.shortMessage||e.message||"Failed";
+    if(/user rejected|denied/i.test(m)) m="Cancelled.";
+    if(/LTMinAmount|min/i.test(m)) m="Below Vouch’s minimum deposit.";
+    if(/Disabled/i.test(m)) m="Vouch deposits are paused.";
+    if(/insufficient funds/i.test(m)) m="Not enough PLS for amount + gas.";
+    setVouchStatus(m,"err");
+  }
+  btn.disabled=false;
+  paintVouch();
+});
+$("vUnBtn") && ($("vUnBtn").onclick=async()=>{
+  if(!account){ openSheet(); return; }
+  const amt=parsePls($("vVplsAmt"));
+  if(!amt || amt<=0n){ setVouchStatus("Enter a vPLS amount.","err"); return; }
+  const btn=$("vUnBtn");
+  btn.disabled=true;
+  try{
+    const tok=new ethers.Contract(VOUCH_VPLS, VPLS_ABI, signer);
+    const wd=new ethers.Contract(VOUCH_WITHDRAW, VOUCH_WD_ABI, signer);
+    const bag=await tok.balanceOf(account);
+    if(bag<amt){ setVouchStatus("Not enough vPLS.","err"); btn.disabled=false; return; }
+    const allow=await tok.allowance(account, VOUCH_WITHDRAW);
+    if(allow<amt){
+      setVouchStatus("Approve vPLS for Vouch withdraw…");
+      btn.textContent="Approve vPLS";
+      btn.classList.add("approve");
+      const txA=await tok.approve(VOUCH_WITHDRAW, ethers.MaxUint256);
+      await txA.wait();
+      btn.classList.remove("approve");
+    }
+    setVouchStatus("Unstaking vPLS…");
+    btn.textContent="Confirm unstake";
+    const tx=await wd.unstake(amt, { gasLimit: 500_000n });
+    await tx.wait();
+    setVouchStatus("If the pool had PLS it is in this wallet; otherwise claim below when ready.","ok");
+    $("vVplsAmt").value="";
+    paintVouch(); refresh();
+  }catch(e){
+    let m=e.shortMessage||e.message||"Failed";
+    if(/user rejected|denied/i.test(m)) m="Cancelled.";
+    if(/insufficient funds/i.test(m)) m="Not enough PLS for gas.";
+    setVouchStatus(m,"err");
+  }
+  btn.disabled=false;
+  btn.classList.remove("approve");
+  paintVouch();
+});
+
+$("hexAmt").addEventListener("input", ()=>paintHttPreview());
+$("hexMax").onclick=async()=>{
+  if(!account){ openSheet(); return; }
+  try{
+    const hx=new ethers.Contract(HEX_ADDR, ERC20_ABI, readProvider);
+    $("hexAmt").value=commaNum(ethers.formatUnits(await hx.balanceOf(account), HEX_DEC), 4);
+    paintHttPreview();
+  }catch(_){}
+};
+$("httList").addEventListener("input", e=>{
+  const card=e.target.closest(".hsi-card");
+  if(card && e.target.matches("[data-day]")) quoteCard(card).catch(()=>{});
+});
+$("httList").onclick=async(e)=>{
+  const b=e.target.closest("[data-act]");
+  if(!b) return;
+  const card=b.closest(".hsi-card");
+  if(!card) return;
+  if(!account){ openSheet(); return; }
+  const act=b.dataset.act;
+  const idx=Number(card.dataset.idx);
+  const hsi=card.dataset.hsi;
+  const colMat=Number(card.dataset.colmat||"0");
+  const minted=BigInt(card.dataset.minted||"0");
+  const amtInp=card.querySelector("[data-amt]");
+  const mat=Number(card.dataset.end||"0");
+  b.disabled=true;
+  try{
+    if(act==="quote"){ await quoteCard(card); b.disabled=false; return; }
+    const mgrW=httMgr(true);
+    const mgrR=httMgr(false);
+    if(act==="mint"){
+      const vaultMat=httMaturity();
+      if(mat!==vaultMat) throw new Error("This HSI ends on day "+mat+". Open that HEXstr vault to mint at max collateral.");
+      await quoteCard(card);
+      let amt=0n;
+      try{ amt=ethers.parseUnits(cleanNum(amtInp.value)||"0", HEX_DEC); }catch(_){ throw new Error("Bad amount."); }
+      const max=BigInt(card.dataset.avail||"0");
+      if(amt<=0n) throw new Error("Enter an amount to mint.");
+      if(amt>max) amt=max;
+      setHttStatus("Minting HTT-"+mat+"…");
+      const tx=await mgrW.mintHEXTimeTokens(BigInt(idx), amt, mat, { gasLimit: 3_500_000n });
+      await tx.wait();
+      setHttStatus("HTT-"+mat+" in this wallet.","ok");
+    }else if(act==="retire"){
+      if(minted<=0n) throw new Error("Nothing minted on this HSI.");
+      const useMat=colMat||mat;
+      let amt=0n;
+      try{ amt=ethers.parseUnits(cleanNum(amtInp.value)||"0", HEX_DEC); }catch(_){ amt=minted; }
+      if(amt<=0n) amt=minted;
+      if(amt>minted) amt=minted;
+      if(!confirm("Retire "+fmt(amt,HEX_DEC,4)+" HTT-"+useMat+"? Burns HTT from this wallet and frees that HEX on the stake.")) throw new Error("Cancelled.");
+      const cIdx=await collateralIndexOf(mgrR, useMat, hsi);
+      if(cIdx<0) throw new Error("Could not find this HSI in Actuator’s collateral list.");
+      setHttStatus("Retiring HTT…");
+      const tx=await mgrW.retireHEXTimeTokens(BigInt(idx), BigInt(cIdx), amt, { gasLimit: 2_000_000n });
+      await tx.wait();
+      setHttStatus("Retired. Stake HEX is un-collateralized by that amount.","ok");
+    }else if(act==="hdrn"){
+      const hi=await hedronIndexOf(mgrR, hsi);
+      if(hi<0n) throw new Error("Could not find this HSI in Hedron.");
+      setHttStatus("Minting HDRN…");
+      let due=0n;
+      try{ due=await mgrR.mintInstanced.staticCall(BigInt(idx), hi); }catch(_){}
+      const tx=await mgrW.mintInstanced(BigInt(idx), hi, { gasLimit: 2_500_000n });
+      await tx.wait();
+      setHttStatus(due>0n ? ("Minted "+fmt(due, HEDRON_DEC, 4)+" HDRN.") : "HDRN mint sent.","ok");
+    }else if(act==="end"){
+      const hi=await hedronIndexOf(mgrR, hsi);
+      if(hi<0n) throw new Error("Could not find this HSI in Hedron.");
+      if(minted<=0n){
+        if(!confirm("End this HEX stake? Any due HDRN is minted first, then HEX returns to this wallet. Early end is penalized by HEX if it has not served.")) throw new Error("Cancelled.");
+      }else{
+        if(!confirm("End this collateralized stake? Any due HDRN is minted first. Before HTT day only the owner can end a fully served stake. After HTT day anyone can. HEX for minted HTT is reserved for redeemers.")) throw new Error("Cancelled.");
+      }
+      let hdrnNote="";
+      try{
+        setHttStatus("Minting HDRN before end-stake…");
+        const due=await mgrR.mintInstanced.staticCall(BigInt(idx), hi).catch(()=>0n);
+        if(due && due>0n){
+          const txH=await mgrW.mintInstanced(BigInt(idx), hi, { gasLimit: 2_500_000n });
+          await txH.wait();
+          hdrnNote=" Minted "+fmt(due, HEDRON_DEC, 4)+" HDRN.";
+        }else hdrnNote=" No HDRN due.";
+      }catch(_){ hdrnNote=" HDRN mint skipped."; }
+      if(minted<=0n){
+        setHttStatus("Ending stake…");
+        const tx=await mgrW.endHEXStake(BigInt(idx), hi, { gasLimit: 3_000_000n });
+        await tx.wait();
+        setHttStatus("Stake ended."+hdrnNote+" HEX is in this wallet.","ok");
+      }else{
+        const useMat=colMat||mat;
+        const cIdx=await collateralIndexOf(mgrR, useMat, hsi);
+        if(cIdx<0) throw new Error("Could not find this HSI in Actuator’s collateral list.");
+        setHttStatus("Ending collateralized stake…");
+        const tx=await mgrW.endCollateralizedHEXStake(hsi, BigInt(idx), BigInt(cIdx), hi, { gasLimit: 4_000_000n });
+        await tx.wait();
+        setHttStatus("Stake ended."+hdrnNote+" Redeem HTT below if the HEX day has arrived.","ok");
+      }
+    }else if(act==="revoke"){
+      if(minted>0n) throw new Error("Retire all HTT first, then revoke.");
+      if(!confirm("Revoke returns the HSI NFT to this wallet. The stake stays in HEX; Actuator no longer controls it.")) throw new Error("Cancelled.");
+      const hi=await hedronIndexOf(mgrR, hsi);
+      if(hi<0n) throw new Error("Could not find this HSI in Hedron.");
+      setHttStatus("Revoking delegation…");
+      const tx=await mgrW.revokeHSIDelegation(BigInt(idx), hi, { gasLimit: 3_000_000n });
+      await tx.wait();
+      setHttStatus("HSI NFT is in this wallet.","ok");
+    }
+    await loadHsiList();
+    loadHttHoldings();
+    refresh();
+  }catch(err){
+    setHttStatus(actuatorErr(err),"err");
+  }
+  b.disabled=false;
+};
+$("httBtn").onclick=async()=>{
+  if(!account){ openSheet(); return; }
+  const amt=parseHexAmt();
+  if(!amt || amt<=0n){ setHttStatus("Enter a HEX amount.","err"); return; }
+  const mat=httMaturity();
+  const btn=$("httBtn");
+  btn.disabled=true;
+  setHttStatus("Preparing HEX stake…");
+  try{
+    const day=await hexCurrentDay();
+    const length=stakeLenFor(mat, day);
+    paintHttDays(day);
+    if(!Number.isFinite(length) || length<1 || length>HEX_MAX_DAYS){
+      setHttStatus("This HTT’s HEX day is not a valid HEX stake length right now.","err");
+      btn.disabled=false; return;
+    }
+    const hx=new ethers.Contract(HEX_ADDR, ERC20_ABI, signer);
+    const mgr=httMgr(true);
+    const bal=await hx.balanceOf(account);
+    if(bal<amt){ setHttStatus("Not enough HEX.","err"); btn.disabled=false; return; }
+    const allow=await hx.allowance(account, HTT_MANAGER);
+    if(allow<amt){
+      setHttStatus("Approve HEX for Actuator…");
+      btn.textContent="Approve HEX";
+      btn.classList.add("approve");
+      const txA=await hx.approve(HTT_MANAGER, ethers.MaxUint256);
+      await txA.wait();
+      btn.classList.remove("approve");
+    }
+    setHttStatus("Starting HEX stake ("+length+" days). No HTT in this transaction…");
+    btn.textContent="Confirm stake";
+    const txS=await mgr.hexStakeStart(amt, length, { gasLimit: 4_000_000n });
+    await txS.wait();
+    setHttStatus("HSI delegated. Mint available HTT-"+mat+" below as extractable grows.","ok");
+    $("hexAmt").value="";
+    paintHttPreview();
+    loadHsiList();
+    refresh();
+  }catch(e){ setHttStatus(actuatorErr(e),"err"); }
+  btn.disabled=false;
+  btn.classList.remove("approve");
+  paintHttPreview();
+};
+$("hsiDelBtn").onclick=async()=>{
+  if(!account){ openSheet(); return; }
+  const id=($("hsiNft").value||"").trim();
+  if(!/^\d+$/.test(id)){ setHttStatus("Enter the HSI NFT token id.","err"); return; }
+  try{
+    const nft=new ethers.Contract(HSIM_ADDR, HSIM_ABI, signer);
+    const mgr=httMgr(true);
+    const tokenId=BigInt(id);
+    const approved=await nft.getApproved(tokenId).catch(()=>null);
+    const all=await nft.isApprovedForAll(account, HTT_MANAGER).catch(()=>false);
+    if(!all && String(approved).toLowerCase()!==HTT_MANAGER.toLowerCase()){
+      setHttStatus("Approve the HSI NFT for Actuator…");
+      const txA=await nft.approve(HTT_MANAGER, tokenId);
+      await txA.wait();
+    }
+    setHttStatus("Delegating HSI…");
+    const tx=await mgr.delegateHSI(tokenId, { gasLimit: 3_000_000n });
+    await tx.wait();
+    setHttStatus("HSI delegated.","ok");
+    $("hsiNft").value="";
+    loadHsiList();
+  }catch(e){ setHttStatus(actuatorErr(e),"err"); }
+};
+$("redBtn") && ($("redBtn").onclick=async()=>{
+  if(!account){ openSheet(); return; }
+  const mat=parseDays($("redMat"));
+  if(!Number.isFinite(mat) || mat<1){ setHttStatus("Enter the HTT redemption day.","err"); return; }
+  let amt=0n;
+  try{ amt=ethers.parseUnits(cleanNum($("redAmt").value)||"0", HEX_DEC); }catch(_){ setHttStatus("Bad redeem amount.","err"); return; }
+  if(amt<=0n){ setHttStatus("Enter an HTT amount.","err"); return; }
+  try{
+    const mgr=httMgr(true);
+    setHttStatus("Redeeming HTT-"+mat+"…");
+    const tx=await mgr.redeemHEXTimeTokens(mat, amt, { gasLimit: 1_500_000n });
+    await tx.wait();
+    setHttStatus("HEX is in this wallet.","ok");
+    $("redAmt").value="";
+    loadHttHoldings();
+    refresh();
+  }catch(e){ setHttStatus(actuatorErr(e),"err"); }
+});
+$("redMat") && $("redMat").addEventListener("change", ()=>loadHttHoldings());
+$("httHold") && ($("httHold").onclick=async(e)=>{
+  const b=e.target.closest("[data-redeem]");
+  if(!b) return;
+  if(!account){ openSheet(); return; }
+  const mat=Number(b.dataset.redeem);
+  const max=BigInt(b.dataset.max||"0");
+  const inp=b.parentElement.querySelector("[data-redamt]");
+  let amt=max;
+  if(inp && inp.value.trim()){
+    try{ amt=ethers.parseUnits(inp.value.trim(), HEX_DEC); }catch(_){ setHttStatus("Bad redeem amount.","err"); return; }
+  }
+  if(amt<=0n){ setHttStatus("Enter an HTT amount.","err"); return; }
+  if(amt>max) amt=max;
+  b.disabled=true;
+  try{
+    setHttStatus("Redeeming HTT-"+mat+"…");
+    const tx=await httMgr(true).redeemHEXTimeTokens(mat, amt, { gasLimit: 1_500_000n });
+    await tx.wait();
+    setHttStatus("HEX is in this wallet.","ok");
+    loadHttHoldings();
+    refresh();
+  }catch(err){ setHttStatus(actuatorErr(err),"err"); }
+  b.disabled=false;
+});
+
+/* ── Liquidity pools: depth + trailing realized fee APR ──
+   V2 math: LP value from fees grows as sqrt(k)/totalSupply. Comparing that
+   ratio now vs ~7 days ago gives realized fee yield; annualize for APR.
+   Needs an RPC that can answer week-old state queries; degrades to n/a. */
+function isqrt(n){ if(n<2n) return n; let x=n, y=(x+1n)/2n; while(y<x){x=y;y=(x+n/x)/2n;} return x; }
+async function pairSnapshot(pair, blockTag){
+  const o = blockTag ? {blockTag} : {};
+  const [res, L] = await Promise.all([pair.getReserves(o), pair.totalSupply(o)]);
+  if (L === 0n) throw new Error("no LP supply");
+  const k = isqrt(BigInt(res[0]) * BigInt(res[1]));
+  return { ratio: Number(k * 10n**18n / L) / 1e18, r0: BigInt(res[0]), r1: BigInt(res[1]) };
+}
+let lpTab="add", lpLast="tok", lpRemPct=0;
+function setLpStatus(m,c){ const s=$("lpStatus"); if(s){ s.textContent=m||""; s.className="status "+(c||""); } }
+function lpQuoteSpec(){
+  const sym=$("lpQuoteSel")?.value|| (cur.cfg.key==="PLSstr"?"PLS":"HEX");
+  return vaultSwapSpec(sym);
+}
+function fillLpSelects(){
+  if(!cur || !$("lpQuoteSel")) return;
+  const opts=cur.cfg.key==="PLSstr"?["PLS","WPLS",cur.cfg.assetSym]:["HEX","PLS","WPLS",cur.cfg.assetSym];
+  const def=cur.cfg.key==="PLSstr"?"PLS":"HEX";
+  const reset=lpVaultKey!==cur.cfg.key;
+  lpVaultKey=cur.cfg.key;
+  const curV=(!reset && opts.includes($("lpQuoteSel").value))?$("lpQuoteSel").value:def;
+  $("lpQuoteSel").innerHTML=opts.map(o=>'<option value="'+o+'"'+(o===curV?" selected":"")+'>'+o+'</option>').join("");
+  if($("lpTokSym")) $("lpTokSym").textContent=cur.cfg.token;
+}
+let lpVaultKey=null;
+function setLpTab(t){
+  lpTab=t;
+  if($("lpTabAdd")) $("lpTabAdd").setAttribute("aria-selected", t==="add"?"true":"false");
+  if($("lpTabRem")) $("lpTabRem").setAttribute("aria-selected", t==="rem"?"true":"false");
+  if($("lpPaneAdd")) $("lpPaneAdd").style.display=t==="add"?"":"none";
+  if($("lpPaneRem")) $("lpPaneRem").style.display=t==="rem"?"":"none";
+  paintLp();
+}
+async function lpPairFor(q){
+  if(!cur||!q) return null;
+  return hopReserves(cur.cfg.vault, q.addr);
+}
+async function paintLp(){
+  if(!cur || !$("lpBox")) return;
+  fillLpSelects();
+  const q=lpQuoteSpec();
+  const hop=await lpPairFor(q);
+  let pos="No PulseX pool vs "+(q?q.sym:"?")+" yet. First add creates a v2 pool at the ratio you set.";
+  if(hop){
+    try{
+      const pc=new ethers.Contract(hop.pair, PAIR_ABI, readProvider);
+      const ts=await pc.totalSupply();
+      const lp=account?await pc.balanceOf(account):0n;
+      const myTok=ts>0n?lp*hop.rIn/ts:0n;
+      const myQ=ts>0n?lp*hop.rOut/ts:0n;
+      pos="Pool "+short(hop.pair)+" · "+fmt(hop.rIn, cur.tDec, 2)+" "+cur.cfg.token+" / "+fmt(hop.rOut, q.dec, 2)+" "+q.sym;
+      if(account) pos+=" · you own "+sharePct(lp,ts)+"% = "+fmt(myTok,cur.tDec,4)+" "+cur.cfg.token+" + "+fmt(myQ,q.dec,4)+" "+q.sym;
+      window._lp={ hop, ts, lp, q };
+    }catch(e){
+      pos="Pool "+short(hop.pair)+" found, but a read failed. Try another RPC.";
+      window._lp={ hop, ts:0n, lp:0n, q };
+    }
+  }
+  if($("lpPos")) $("lpPos").textContent=pos;
+  if(lpTab==="add") quoteLpAdd(); else quoteLpRem();
+}
+async function quoteLpAdd(){
+  if(!cur) return;
+  const q=lpQuoteSpec();
+  const hop=await lpPairFor(q);
+  if(account){
+    try{ $("lpTokBal").textContent="Balance: "+fmt(await new ethers.Contract(cur.cfg.vault, ERC20_ABI, readProvider).balanceOf(account), cur.tDec, 4)+" "+cur.cfg.token; }catch(_){}
+    try{
+      const bag=q.native?await readProvider.getBalance(account):await new ethers.Contract(q.addr, ERC20_ABI, readProvider).balanceOf(account);
+      $("lpQuoteBal").textContent="Balance: "+fmt(bag, q.dec, 4)+" "+q.sym;
+    }catch(_){}
+  }
+  const tokRaw=cleanNum($("lpTokAmt")?.value), qRaw=cleanNum($("lpQuoteAmt")?.value);
+  const btn=$("lpAddBtn");
+  if(!account){ if(btn) btn.textContent="Connect wallet"; }
+  else if(btn) btn.textContent=hop?"Add liquidity":"Create PulseX v2 pool";
+  if(hop && hop.rIn>0n && hop.rOut>0n){
+    try{
+      if(lpLast==="tok" && tokRaw && parseFloat(tokRaw)>0){
+        const tAmt=ethers.parseUnits(tokRaw, cur.tDec);
+        const qAmt=tAmt*hop.rOut/hop.rIn;
+        if($("lpQuoteAmt") && document.activeElement!==$("lpQuoteAmt")) $("lpQuoteAmt").value=commaNum(ethers.formatUnits(qAmt, q.dec), 4);
+      }else if(lpLast==="quote" && qRaw && parseFloat(qRaw)>0){
+        const qAmt=ethers.parseUnits(qRaw, q.dec);
+        const tAmt=qAmt*hop.rIn/hop.rOut;
+        if($("lpTokAmt") && document.activeElement!==$("lpTokAmt")) $("lpTokAmt").value=commaNum(ethers.formatUnits(tAmt, cur.tDec), 4);
+      }
+    }catch(_){}
+  }
+  const tNow=cleanNum($("lpTokAmt")?.value), qNow=cleanNum($("lpQuoteAmt")?.value);
+  if($("lpAddPrev")) $("lpAddPrev").textContent=(tNow||"—")+" "+cur.cfg.token+" + "+(qNow||"—")+" "+q.sym;
+  const skew=$("lpAddSkew");
+  if(skew && lastBacking && tNow && qNow && parseFloat(tNow)>0 && parseFloat(qNow)>0){
+    try{
+      const tAmt=ethers.parseUnits(tNow, cur.tDec);
+      const qAmt=ethers.parseUnits(qNow, q.dec);
+      const per=Number(ethers.formatUnits(qAmt, q.dec))/Number(ethers.formatUnits(tAmt, cur.tDec));
+      skew.textContent=per.toFixed(4)+" "+q.sym+" per token · backing "+lastBacking.toFixed(4)+" "+cur.cfg.assetSym;
+    }catch(_){ skew.textContent="—"; }
+  }
+}
+function paintLpPct(){
+  const p=Math.max(0, Math.min(100, Number(lpRemPct)||0));
+  if($("lpPctRange")) $("lpPctRange").value=String(p);
+  if($("lpPctLab")) $("lpPctLab").textContent=p+"%";
+  document.querySelectorAll("#lpPctRow button").forEach(b=>{
+    b.classList.toggle("on", Number(b.dataset.p)===p);
+  });
+}
+function setLpPct(p){
+  lpRemPct=Math.max(0, Math.min(100, Number(p)||0));
+  paintLpPct();
+  quoteLpRem();
+}
+async function quoteLpRem(){
+  const s=window._lp, q=lpQuoteSpec();
+  paintLpPct();
+  if(!s||!s.ts||s.ts===0n){
+    ["lpRemShare","lpRemTok","lpRemQuote","lpRemPrev","lpRemLp"].forEach(id=>{ if($(id)) $(id).textContent="—"; });
+    if($("lpBurnBal")) $("lpBurnBal").textContent="No LP in this wallet for this pool.";
+    return;
+  }
+  if($("lpBurnBal")) $("lpBurnBal").textContent=(s.ts<10n**15n)
+    ? ("You own "+sharePct(s.lp,s.ts)+"% of the pool · LP units "+fmtLp(s.lp)+" (tiny is normal when HEX is 8 decimals)")
+    : ("Your LP: "+fmtLp(s.lp)+" · "+sharePct(s.lp,s.ts)+"% of the pool");
+  const p=Math.max(0, Math.min(100, Number(lpRemPct)||0));
+  if(p<=0 || s.lp===0n){
+    ["lpRemShare","lpRemTok","lpRemQuote","lpRemPrev","lpRemLp"].forEach(id=>{ if($(id)) $(id).textContent="—"; });
+    return;
+  }
+  const burn=p>=100 ? s.lp : s.lp*BigInt(Math.round(p))/100n;
+  if(burn===0n){
+    ["lpRemShare","lpRemTok","lpRemQuote","lpRemPrev","lpRemLp"].forEach(id=>{ if($(id)) $(id).textContent="—"; });
+    return;
+  }
+  const outT=burn*s.hop.rIn/s.ts, outQ=burn*s.hop.rOut/s.ts;
+  if($("lpRemLp")) $("lpRemLp").textContent=fmtLp(burn);
+  if($("lpRemShare")) $("lpRemShare").textContent=sharePct(burn,s.ts)+"% of the pool";
+  if($("lpRemPrev")) $("lpRemPrev").textContent=fmt(outT, cur.tDec, 4)+" "+cur.cfg.token+" + "+fmt(outQ, q.dec, 4)+" "+(q.native?"PLS":q.sym);
+  window._lpRem={ burn, outT, outQ, q, pair:s.hop.pair };
+}
+async function execLpAdd(){
+  if(!account){ openSheet(); return; }
+  const btn=$("lpAddBtn"); if(btn) btn.disabled=true;
+  try{
+    const q=lpQuoteSpec();
+    const tRaw=cleanNum($("lpTokAmt").value), qRaw=cleanNum($("lpQuoteAmt").value);
+    if(!(parseFloat(tRaw)>0)||!(parseFloat(qRaw)>0)){ setLpStatus("Enter both amounts.","err"); btn.disabled=false; return; }
+    const tAmt=ethers.parseUnits(tRaw, cur.tDec);
+    const qAmt=ethers.parseUnits(qRaw, q.dec);
+    const hop=await lpPairFor(q);
+    const r=new ethers.Contract(PULSEX_V2_ROUTER, ROUTER_ABI, signer);
+    const tok=new ethers.Contract(cur.cfg.vault, ERC20_ABI, signer);
+    if((await tok.allowance(account, PULSEX_V2_ROUTER))<tAmt){
+      setLpStatus("Approve "+cur.cfg.token+"…");
+      const txA=await tok.approve(PULSEX_V2_ROUTER, ethers.MaxUint256); await txA.wait();
+    }
+    if(!q.native){
+      const qt=new ethers.Contract(q.addr, ERC20_ABI, signer);
+      if((await qt.allowance(account, PULSEX_V2_ROUTER))<qAmt){
+        setLpStatus("Approve "+q.sym+"…");
+        const txB=await qt.approve(PULSEX_V2_ROUTER, ethers.MaxUint256); await txB.wait();
+      }
+    }
+    setLpStatus(hop?"Adding liquidity…":"Creating PulseX v2 pool…");
+    const dl=BigInt(Math.floor(Date.now()/1000)+1200);
+    const gas=hop?800_000n:2_800_000n;
+    const tx=q.native
+      ? await r.addLiquidityETH(cur.cfg.vault, tAmt, tAmt*99n/100n, qAmt*99n/100n, account, dl, { value:qAmt, gasLimit:gas })
+      : await r.addLiquidity(cur.cfg.vault, q.addr, tAmt, qAmt, tAmt*99n/100n, qAmt*99n/100n, account, dl, { gasLimit:gas });
+    await tx.wait();
+    setLpStatus("LP tokens in this wallet.","ok");
+    await refresh(); paintLp();
+  }catch(e){
+    let m=e.shortMessage||e.message||"Failed";
+    if(/user rejected|denied/i.test(m)) m="Cancelled.";
+    setLpStatus(m,"err");
+  }
+  if(btn) btn.disabled=false;
+}
+async function execLpRem(){
+  if(!account){ openSheet(); return; }
+  const btn=$("lpRemBtn"); if(btn) btn.disabled=true;
+  try{
+    await paintLp(); await quoteLpRem();
+    const s=window._lpRem;
+    if(!s||!s.burn){ setLpStatus("Pick 25%, 50%, 75% or Max.","err"); btn.disabled=false; return; }
+    const pc=new ethers.Contract(s.pair, PAIR_ABI, signer);
+    if((await pc.allowance(account, PULSEX_V2_ROUTER))<s.burn){
+      setLpStatus("Approve LP…");
+      const txA=await pc.approve(PULSEX_V2_ROUTER, ethers.MaxUint256); await txA.wait();
+    }
+    const r=new ethers.Contract(PULSEX_V2_ROUTER, ROUTER_ABI, signer);
+    setLpStatus("Removing liquidity…");
+    const dl=BigInt(Math.floor(Date.now()/1000)+1200);
+    const tx=s.q.native
+      ? await r.removeLiquidityETH(cur.cfg.vault, s.burn, s.outT*99n/100n, s.outQ*99n/100n, account, dl, { gasLimit:800_000n })
+      : await r.removeLiquidity(cur.cfg.vault, s.q.addr, s.burn, s.outT*99n/100n, s.outQ*99n/100n, account, dl, { gasLimit:800_000n });
+    await tx.wait();
+    setLpStatus("Liquidity removed.","ok");
+    lpRemPct=0; paintLpPct(); $("lpBurnAmt") && ($("lpBurnAmt").value=""); await refresh(); paintLp();
+  }catch(e){
+    let m=e.shortMessage||e.message||"Failed";
+    if(/user rejected|denied/i.test(m)) m="Cancelled.";
+    setLpStatus(m,"err");
+  }
+  if(btn) btn.disabled=false;
+}
+
+async function loadPools(cfg){
+  const sec = $("poolsSec"), list = $("poolsList");
+  const pools = (cfg.pools||[]).filter(p=>p.address);
+  if(!pools.length){ sec.style.display="none"; return; }
+  sec.style.display="block";
+  list.innerHTML = pools.map((p,i)=>
+    '<div class="pool"><div><div class="pname">'+p.name+'</div><div class="pdepth" id="pd'+i+'">loading…</div>'+
+    '<div class="paddr"><span title="'+p.address+'">'+p.address.slice(0,10)+'…'+p.address.slice(-8)+'</span>'+
+    '<button class="icpy" onclick="copyText(\''+p.address+'\',this)">copy pair</button>'+
+    (cfg.vault ? '<button class="icpy" onclick="copyText(\''+cfg.vault+'\',this)">copy '+cfg.token+'</button>' : '')+
+    '</div></div>'+
+    '<div class="papr" id="pa'+i+'">…<small>trailing 7d fee APR</small></div></div>').join("");
+  const nowBlock = await readProvider.getBlockNumber();
+  for(let i=0;i<pools.length;i++){
+    (async()=>{
+      try{
+        const pair = new ethers.Contract(pools[i].address, PAIR_ABI, readProvider);
+        // depth: both reserves with their symbols/decimals
+        const [t0,t1] = await Promise.all([pair.token0(), pair.token1()]);
+        const c0 = new ethers.Contract(t0, SYM_ABI, readProvider);
+        const c1 = new ethers.Contract(t1, SYM_ABI, readProvider);
+        const [s0,s1,d0,d1] = await Promise.all([c0.symbol(),c1.symbol(),c0.decimals(),c1.decimals()]);
+        const now = await pairSnapshot(pair, null);
+        $("pd"+i).textContent = fmt(now.r0,Number(d0),2)+" "+s0+" · "+fmt(now.r1,Number(d1),2)+" "+s1;
+        // APR: try 7d, then 3d, then 1d windows
+        const daysList = [7,3,1];
+        let apr = null, days = 7;
+        for (const d of daysList){
+          const back = nowBlock - Math.floor(d*86400/CHAIN.blockTimeSec);
+          if (back <= 0) continue;
+          try{
+            const past = await pairSnapshot(pair, back);
+            if (past.ratio > 0){
+              apr = (now.ratio/past.ratio - 1) * (365/d) * 100;
+              days = d; break;
+            }
+          }catch(_){/* pool too new or no archive at this depth */}
+        }
+        const el = $("pa"+i);
+        if (apr === null){
+          el.innerHTML = 'n/a<small>pool too new or RPC lacks history</small>';
+          el.style.color = "var(--mut)";
+        } else {
+          el.innerHTML = (apr>=0? apr.toFixed(2) : "0.00") + '%<small>trailing '+days+'d fee APR</small>';
+        }
+      }catch(e){
+        $("pd"+i).textContent = "unreadable";
+        const el=$("pa"+i); el.textContent="n/a"; el.style.color="var(--mut)";
+      }
+    })();
+  }
+  paintLp();
+}
+
+/* ---------- reads ---------- */
+async function refresh(){
+  if(!cur) return;
+
+  // RPC health check runs regardless of vault-configured status, since
+  // asset-balance reads need it too.
+  if(!rpcHealthy){
+    const ok = await ensureRpc();
+    if(!ok){ setStatus("All RPC endpoints are unreachable — check your connection or add another endpoint to CHAIN.rpcs.","err"); return; }
+    cur.ar = new ethers.Contract(cur.cfg.assetAddr, ERC20_ABI, readProvider);
+    if(cur.cfg.vault) cur.vr = new ethers.Contract(cur.cfg.vault, VAULT_ABI, readProvider);
+  }
+
+  // Asset balance is independent of the vault contract existing — fetch it
+  // whenever a wallet is connected, vault-configured or not.
+  if(account){
+    try{
+      const ua = await cur.ar.balanceOf(account);
+      bal.asset=ua;
+      $("userAsset").textContent=fmt(ua,cur.aDec);
+      if(mode==="mint") $("inBal").textContent="Balance: "+fmt(ua,cur.aDec);
+    }catch(e){ console.error("asset balance read failed",e); rpcHealthy=false; }
+  }
+
+  if(!cur.vr){
+    $("backingNum").textContent="1.0000";
+    setStatus(cur.cfg.name+" is not configured yet: set its vault address in this file","err");
+    return;
+  }
+
+  try{
+    const [backing,vb,ts,quota,tnext]=await Promise.all([
+      cur.vr.backingPerToken(),cur.vr.vaultBalance(),
+      cur.vr.totalSupply(),cur.vr.mintQuotaRemaining(),cur.vr.timeToNextEpoch()
+    ]);
+    lastBacking = parseFloat(ethers.formatEther(backing));
+    $("backingNum").textContent=lastBacking.toFixed(4);
+    setRail(backing);
+    updateMarket();
+    loadBackingDelta();
+    $("vaultBal").textContent=fmt(vb,cur.aDec)+" "+cur.cfg.assetSym;
+    $("supply").textContent=fmt(ts,cur.tDec);
+    $("quota").textContent=quota>=MAXU/2n?"unlimited (genesis)":fmt(quota,cur.tDec)+" "+cur.cfg.token;
+    epochSecs=Number(tnext); epochFetched=Date.now();
+    if(account){
+      const ut = await cur.vr.balanceOf(account);
+      bal.token=ut;
+      $("userTok").textContent=fmt(ut,cur.tDec);
+      if(mode==="redeem") $("inBal").textContent="Balance: "+fmt(ut,cur.tDec);
+    }
+    setStatus("");
+    if(httMaturity()){ paintHttPreview(); loadHsiList(); loadHttHoldings(); paintHexReco(); }
+    if(cur && cur.cfg.key==="PLSstr") paintVouch();
+  }catch(e){
+    console.error(e);
+    rpcHealthy = false; // next refresh cycle probes & rotates endpoints
+  }
+  if(cardTab==="swap") quoteVaultSwap();
+  paintLp();
+}
+function tickEpoch(){
+  if(epochSecs===null)return;
+  let s=Math.max(0,epochSecs-Math.floor((Date.now()-epochFetched)/1000));
+  const d=Math.floor(s/86400);s%=86400;
+  $("epochTimer").textContent=(d?d+"d ":"")+Math.floor(s/3600)+"h "+Math.floor((s%3600)/60)+"m";
+}
+setInterval(tickEpoch,1000); setInterval(refresh,15000);
+
+/* ---------- preview ---------- */
+async function updatePreview(){
+  const v=cleanNum($("amt").value); previewOut=0n;
+  if(!cur||!cur.vr||!v||isNaN(parseFloat(v))||parseFloat(v)<=0){$("outAmt").textContent="—";$("feeAmt").textContent="—";updateActionState();return;}
+  try{
+    if(mode==="mint"){
+      const amt=ethers.parseUnits(v,cur.aDec);
+      const out=await cur.vr.previewMint(amt); previewOut=out;
+      $("outAmt").textContent=fmt(out,cur.tDec)+" "+cur.cfg.token;
+      $("feeAmt").textContent=fmt(amt*450n/10450n,cur.aDec)+" "+cur.cfg.assetSym;
+    }else{
+      const amt=ethers.parseUnits(v,cur.tDec);
+      const [out,fee]=await cur.vr.previewRedeem(amt); previewOut=out;
+      $("outAmt").textContent=fmt(out,cur.aDec)+" "+cur.cfg.assetSym;
+      $("feeAmt").textContent=fee===0n?"0 (full-supply waiver)":fmt(fee,cur.aDec)+" "+cur.cfg.assetSym;
+    }
+  }catch(e){$("outAmt").textContent="—";$("feeAmt").textContent="—";}
+  updateActionState();
+}
+$("amt").addEventListener("input",updatePreview);
+
+/* ---------- tabs ---------- */
+let cardTab="swap";
+function setCardTab(t){
+  cardTab=t;
+  if(t==="mint"||t==="redeem") mode=t;
+  if($("tabSwap")) $("tabSwap").setAttribute("aria-selected", t==="swap"?"true":"false");
+  $("tabMint").setAttribute("aria-selected", t==="mint"?"true":"false");
+  $("tabRedeem").setAttribute("aria-selected", t==="redeem"?"true":"false");
+  if($("swapPane")) $("swapPane").style.display=t==="swap"?"":"none";
+  if($("mrPane")) $("mrPane").style.display=t==="swap"?"none":"";
+  if(t==="swap"){
+    fillVaultSwapSelects();
+    quoteVaultSwap();
+    return;
+  }
+  $("inLabel").textContent=mode==="mint"?"You deposit":"You redeem";
+  $("inSym").textContent=mode==="mint"?cur.cfg.assetSym:cur.cfg.token;
+  $("feeLabel").textContent=mode==="mint"?"Mint premium (4.5%: 4.0% vault, 0.5% protocol fee)":"Redemption fee (0.5%, stays in the vault)";
+  $("inBal").textContent=account?"Balance: "+(mode==="mint"?fmt(bal.asset,cur.aDec):fmt(bal.token,cur.tDec)):"";
+  $("amt").value=""; updatePreview();
+}
+function setMode(m){ setCardTab(m); }
+$("tabSwap") && ($("tabSwap").onclick=()=>setCardTab("swap"));
+$("tabMint").onclick=()=>setCardTab("mint");
+$("tabRedeem").onclick=()=>setCardTab("redeem");
+$("maxBtn").onclick=()=>{
+  $("amt").value = commaNum(mode==="mint" ? ethers.formatUnits(bal.asset,cur.aDec) : ethers.formatUnits(bal.token,cur.tDec), 6);
+  updatePreview();
+};
+
+/* ---------- connect ---------- */
+function openSheet(){$("sheet").classList.add("open");$("sheetBack").classList.add("open");}
+function closeSheet(){$("sheet").classList.remove("open");$("sheetBack").classList.remove("open");}
+$("sheetBack").onclick=closeSheet;
+/* Desktop browsers sandbox file:// pages hard: extensions can't see them
+   unless explicitly allowed, and WalletConnect's relay rejects an origin-less
+   page when the project is domain-locked. Say so up front rather than letting
+   people click into a silent failure. */
+(function(){
+  if(location.protocol !== "file:") return;
+  const n = $("fileNote"); if(!n) return;
+  const desktop = !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  n.innerHTML = desktop
+    ? '<b>Running from a downloaded file.</b> For a browser wallet, open your extension settings (e.g. chrome://extensions \u2192 MetaMask \u2192 Details) and turn on <b>Allow access to file URLs</b>.'
+    : '<b>Running from a downloaded file.</b> On Android, open this file with <b>Cx File Explorer</b> (free on Google Play) and pick Chrome or Brave \u2014 the ones marked <b>HTTP</b>. On iPhone, use pulsestrategy369.com/vaults to connect.';
+  n.style.display = "block";
+})();
+
+$("connectBtn").onclick=()=>{
+  if(!account){ openSheet(); return; }
+  const existing = document.getElementById("wmenu");
+  if(existing){ existing.remove(); return; }
+  const m = document.createElement("div");
+  m.id = "wmenu"; m.className = "wmenu";
+  m.innerHTML = '<button id="wmView">View on PulseVerify \u2197</button>'
+              + '<button id="wmCopy">Copy address</button>'
+              + '<button id="wmDisc" class="dis">Disconnect</button>';
+  document.querySelector(".hdr-right").appendChild(m);
+  $("wmView").onclick = () => { window.open(EXPLORER_URL + "/address/" + account, "_blank", "noopener"); m.remove(); };
+  $("wmCopy").onclick = () => { copyText(account, null); m.remove(); };
+  $("wmDisc").onclick = () => { m.remove(); disconnectWallet(); };
+  setTimeout(() => document.addEventListener("click", function away(e){
+    if(!m.contains(e.target) && e.target.id !== "connectBtn"){ m.remove(); document.removeEventListener("click", away); }
+  }), 0);
+};
+
+async function disconnectWallet(){
+  try{ if(eip1193 && typeof eip1193.disconnect === "function") await eip1193.disconnect(); }catch(_){}
+  try{ localStorage.removeItem("ps_wallet"); }catch(_){}
+  eip1193 = null; signer = null; account = null;
+  if(cur){ cur.vault = null; cur.assetW = null; }
+  const b = $("connectBtn"); b.textContent = "Connect"; b.classList.remove("connected");
+  $("userTok").textContent = "\u2014";
+  $("userAsset").textContent = "\u2014";
+  syncHttWalletUi();
+  statusLockUntil = 0; setStatus("");
+  await refresh(); updateActionState();
+}
+
+/* Reconnect silently on return. eth_accounts never prompts — it only reports
+   accounts the user already authorised for this site — and WalletConnect's
+   init() restores an existing session on its own. Either way, no popup unless
+   the user actually clicks Connect. */
+async function tryAutoConnect(){
+  let kind = null;
+  try{ kind = localStorage.getItem("ps_wallet"); }catch(_){}
+  if(!kind) return;
+  if(kind === "injected"){
+    if(!window.ethereum) return;
+    try{
+      const accts = await window.ethereum.request({ method:"eth_accounts" });
+      if(accts && accts.length) await finishConnect(window.ethereum);
+    }catch(_){}
+    return;
+  }
+  if(kind === "wc"){
+    try{
+      const provider = await wcInit();
+      if(provider && provider.accounts && provider.accounts.length) await finishConnect(provider);
+    }catch(_){}
+  }
+}
+
+async function finishConnect(p, kind){
+  eip1193=p;
+  if(kind){ try{ localStorage.setItem("ps_wallet", kind); }catch(_){} }
+  const bp=new ethers.BrowserProvider(p);
+  signer=await bp.getSigner();
+  account=await signer.getAddress();
+  if(cur&&cur.cfg.vault) cur.vault=new ethers.Contract(cur.cfg.vault,VAULT_ABI,signer);
+  if(cur) cur.assetW=new ethers.Contract(cur.cfg.assetAddr,ERC20_ABI,signer);
+  $("connectBtn").textContent=account.slice(0,6)+"…"+account.slice(-4);
+  $("connectBtn").classList.add("connected");
+  p.on?.("accountsChanged",()=>location.reload());
+  p.on?.("chainChanged",()=>location.reload());
+  closeSheet(); setStatus("");
+  syncHttWalletUi();
+  await refresh(); updatePreview();
+}
+
+$("optInjected").onclick=async()=>{
+  if(!window.ethereum){setStatus("No browser wallet found — use WalletConnect, or open this page in your wallet's built-in browser.","err");closeSheet();return;}
+  try{
+    await window.ethereum.request({method:"eth_requestAccounts"});
+    try{await window.ethereum.request({method:"wallet_switchEthereumChain",params:[{chainId:CHAIN.hex}]});}
+    catch(sw){ if(sw.code===4902){ await window.ethereum.request({method:"wallet_addEthereumChain",params:[{
+      chainId:CHAIN.hex, chainName:CHAIN.name, nativeCurrency:CHAIN.nativeCurrency,
+      rpcUrls:CHAIN.publicRpcs, blockExplorerUrls:[CHAIN.explorer.replace(/\/address\/$/,"")]}]}); } else throw sw; }
+    await finishConnect(window.ethereum, "injected");
+  }catch(e){
+    setStatus(e.shortMessage||e.message,"err"); closeSheet();
+  }
+};
+
+let _wcProvider = null, _wcInitPromise = null;
+async function wcInit(){
+  /* WalletConnect Core must be initialised exactly once per page. Auto-reconnect
+     and the Connect button both need it, so hand back the same instance (and the
+     same in-flight promise) instead of building a new Core each time. */
+  if(_wcProvider) return _wcProvider;
+  if(_wcInitPromise) return _wcInitPromise;
+  const WCP=(window["@walletconnect/ethereum-provider"]&&window["@walletconnect/ethereum-provider"].EthereumProvider)
+          ||window.EthereumProvider||window.WalletConnectEthereumProvider;
+  if(!WCP) throw new Error("WalletConnect library not loaded");
+  /* on file:// there is no real origin — send the canonical site instead of "null" */
+  const siteUrl = (location.origin && location.origin !== "null" && location.protocol !== "file:")
+                    ? location.origin : "https://pulsestrategy369.com";
+  _wcInitPromise = WCP.init({
+    projectId:WC_PROJECT_ID, optionalChains:[CHAIN.id], rpcMap:{[CHAIN.id]:CHAIN.publicRpcs[0]},
+    showQrModal:true,
+    metadata:{name:SITE.brandName,description:"Immutable vault tokens — the floor only rises",url:siteUrl,icons:[]}
+  }).then(p => { _wcProvider = p; _wcInitPromise = null; return p; })
+    .catch(e => { _wcInitPromise = null; throw e; });
+  return _wcInitPromise;
+}
+$("optWC").onclick=async()=>{
+  if(!WC_PROJECT_ID){setStatus("WalletConnect not configured: set WC_PROJECT_ID in this file (free at cloud.reown.com).","err");closeSheet();return;}
+  try{
+    const provider = await wcInit();
+    await provider.connect();
+    await finishConnect(provider, "wc");
+  }catch(e){
+    const m = String(e && (e.message || e.shortMessage) || "");
+    if(/origin not allowed|unauthorized/i.test(m) && location.protocol === "file:")
+      setStatus("WalletConnect blocked this local copy: the project ID is locked to pulsestrategy369.com and a downloaded file has no web address to check. Use pulsestrategy369.com/vaults for WalletConnect, or connect a browser wallet instead.","err");
+    else setStatus(m || "WalletConnect failed","err");
+    closeSheet();
+  }
+};
+
+/* ---------- action ---------- */
+async function updateActionState(){
+  const btn=$("actionBtn"); btn.classList.remove("approve");
+  if(!cur||!cur.cfg.vault){btn.textContent="Not configured";btn.disabled=true;return;}
+  if(!account){btn.textContent="Connect wallet";btn.disabled=false;btn.onclick=openSheet;return;}
+  const v=cleanNum($("amt").value);
+  if(!v||isNaN(parseFloat(v))||parseFloat(v)<=0){btn.textContent=mode==="mint"?"Mint "+cur.cfg.token:"Redeem for "+cur.cfg.assetSym;btn.disabled=true;return;}
+  if(mode==="mint"){
+    const amt=ethers.parseUnits(v,cur.aDec);
+    if(amt>bal.asset){btn.textContent="Insufficient balance";btn.disabled=true;return;}
+    const allowance=await cur.ar.allowance(account,cur.cfg.vault);
+    needsApproval=allowance<amt;
+    btn.textContent=needsApproval?"Approve "+cur.cfg.assetSym:"Mint "+cur.cfg.token;
+    if(needsApproval)btn.classList.add("approve");
+  }else{
+    const amt=ethers.parseUnits(v,cur.tDec);
+    if(amt>bal.token){btn.textContent="Insufficient balance";btn.disabled=true;return;}
+    needsApproval=false; btn.textContent="Redeem for "+cur.cfg.assetSym;
+  }
+  btn.disabled=false; btn.onclick=doAction;
+}
+
+async function doAction(){
+  const btn=$("actionBtn");
+  btn.disabled=true;
+  try{
+    if(mode==="mint"){
+      const amt=ethers.parseUnits(cleanNum($("amt").value),cur.aDec);
+      if(needsApproval){
+        setStatus("Approving "+cur.cfg.assetSym+"…");
+        const tx=await cur.assetW.approve(cur.cfg.vault,amt); await tx.wait();
+        setStatusHtml("Approved."+txLink(tx.hash)+dismissLink(),"ok",120); await updateActionState(); btn.disabled=false; return;
+      }
+      const minOut=previewOut*995n/1000n;
+      setStatus("Minting…");
+      const tx=await cur.vault.mint(amt,minOut); await tx.wait();
+      setStatusHtml("Minted. The ratchet just clicked forward."+txLink(tx.hash)+dismissLink(),"ok",120);
+    }else{
+      const amt=ethers.parseUnits(cleanNum($("amt").value),cur.tDec);
+      const minOut=previewOut*995n/1000n;
+      setStatus("Redeeming…");
+      const tx=await cur.vault.redeem(amt,minOut); await tx.wait();
+      setStatusHtml("Redeemed."+txLink(tx.hash)+dismissLink(),"ok",120);
+    }
+    $("amt").value=""; await refresh(); await updatePreview();
+  }catch(e){
+    let m=e.shortMessage||e.message||"Transaction failed";
+    if(/MintQuotaExceeded/.test(m)) m="Epoch mint quota is exhausted — buy on the DEX or wait for the next epoch.";
+    if(/user rejected/i.test(m)) m="Transaction cancelled.";
+    setStatus(m,"err");
+  }
+  btn.disabled=false; updateActionState();
+}
+
+
+/* ══════════ Market price · add-to-wallet · backing history ══════════════════
+   All three read the chain directly through the same RPC the rest of the page
+   uses. Nothing here is required for mint/redeem to work: every call is
+   wrapped so a missing pool, a non-archive RPC, or a blocked localStorage
+   simply hides the feature instead of breaking the dapp. */
+let lastBacking = null;
+
+
+/* ---------- "+x% in the last N days" ----------------------------------------
+   Minted and Redeemed both carry newBackingPerToken as their final value, so a
+   single eth_getLogs over the window gives a baseline to compare against the
+   live figure — no archive node involved. Public RPCs cap how many blocks one
+   query may span, so we ask for 7 days and step down if an endpoint refuses.
+   Any failure just leaves the line hidden. */
+const MINTED_TOPIC   = "0x5a3358a3d27a5373c0df2604662088d37894d56b7cfd27f315770440f4e0d919";
+const REDEEMED_TOPIC = "0x76cd0cedf979345ca241ce6de696a520a8efc860c6c10d9db2a7953307c237fc";
+
+async function loadBackingDelta(){
+  const el = $("backDelta"); if(!el) return;
+  el.style.display = "none";
+  if(!cur || !cur.cfg.vault || !(lastBacking > 0)) return;
+  const vault = cur.cfg.vault;
+  const perDay = Math.max(1, Math.round(86400 / CHAIN.blockTimeSec));
+  let head;
+  try{ head = await readProvider.getBlockNumber(); }catch(e){ return; }
+  for(const days of [7, 3, 1]){
+    let logs;
+    try{
+      logs = await readProvider.getLogs({
+        address: vault,
+        topics: [[MINTED_TOPIC, REDEEMED_TOPIC]],
+        fromBlock: Math.max(0, head - days * perDay),
+        toBlock: head
+      });
+    }catch(e){ continue; }               // window too wide for this RPC — try smaller
+    if(!logs || !logs.length) return;    // query worked, nothing happened: say nothing
+    const d = (logs[0].data || "0x").replace(/^0x/, "");
+    if(d.length < 64) return;
+    let base;
+    try{ base = Number(ethers.formatEther(BigInt("0x" + d.slice(-64)))); }catch(e){ return; }
+    if(!(base > 0)) return;
+    if(cur.cfg.vault !== vault) return;  // vault switched mid-query
+    const pct = (lastBacking / base - 1) * 100;
+    el.textContent = (pct >= 0 ? "+" : "") + pct.toFixed(2) + "% in the last "
+                   + days + (days === 1 ? " day" : " days");
+    el.style.display = "block";
+    return;
+  }
+}
+
+/* ---------- DEX market price vs backing ---------- */
+async function findPairInfo(a, b){
+  let best=null, bestLiq=-1n;
+  for(const f of PULSEX_FACTORIES){
+    try{
+      const p = await new ethers.Contract(f, FACTORY_ABI, readProvider).getPair(a, b);
+      if(!p || p===ethers.ZeroAddress) continue;
+      const [r0,r1] = await new ethers.Contract(p, PAIR_ABI, readProvider).getReserves();
+      const liq = BigInt(r0) * BigInt(r1);
+      if(liq>bestLiq){
+        bestLiq=liq;
+        best={ pair:p, factory:f, router:PULSEX_ROUTER_OF[f.toLowerCase()]||PULSEX_V2_ROUTER };
+      }
+    }catch(_){}
+  }
+  return best;
+}
+async function findPair(a, b){
+  const i=await findPairInfo(a,b);
+  return i?i.pair:null;
+}
+/* how many B you get for 1 A, from pool reserves (spot, ignores fees/slippage) */
+async function pairPrice(tokenA, decA, tokenB, decB){
+  const p = await findPair(tokenA, tokenB);
+  if(!p) return null;
+  try{
+    const pc = new ethers.Contract(p, PAIR_ABI, readProvider);
+    const [r0, r1] = await pc.getReserves();
+    const t0 = (await pc.token0()).toLowerCase();
+    const aIs0 = t0 === tokenA.toLowerCase();
+    const rA = Number(ethers.formatUnits(aIs0 ? r0 : r1, decA));
+    const rB = Number(ethers.formatUnits(aIs0 ? r1 : r0, decB));
+    return (rA > 0 && rB > 0) ? rB / rA : null;
+  }catch(_){ return null; }
+}
+function copyText(t, btn){
+  try{ navigator.clipboard.writeText(t); }catch(_){}
+  if(!btn) return;
+  if(btn){ const o = btn.textContent; btn.textContent = "copied"; setTimeout(()=>btn.textContent = o, 1100); }
+}
+function paintTradeLink(){
+  const a = $("tradeLink");
+  const cp = $("copyTok");
+  if(a) a.style.display = "none";
+  if(cur && cur.cfg.vault){
+    if(cp){ cp.style.display = "inline-block"; cp.onclick = () => copyText(cur.cfg.vault, cp); }
+  } else {
+    if(cp) cp.style.display = "none";
+  }
+}
+async function updateMarket(){
+  const chip = $("mktChip"); if(!chip) return;
+  if(!cur || !cur.vr || !cur.cfg.vault || !lastBacking){ chip.style.display = "none"; return; }
+  const cfg = cur.cfg;
+  try{
+    let price = await pairPrice(cfg.vault, cur.tDec, cfg.assetAddr, cur.aDec);
+    if(price === null){
+      /* No direct vault/asset pool: bridge through whatever both sides trade
+         against. HEXstr pools against HEX while its asset is an HTT token, so
+         HEX has to be a candidate bridge alongside WPLS. */
+      for(const b of BRIDGES){
+        if(b.addr.toLowerCase() === cfg.assetAddr.toLowerCase()) continue;
+        const tB = await pairPrice(cfg.vault, cur.tDec, b.addr, b.dec);
+        if(tB === null) continue;
+        const aB = await pairPrice(cfg.assetAddr, cur.aDec, b.addr, b.dec);
+        if(aB > 0){ price = tB / aB; break; }
+      }
+    }
+    if(price === null){ chip.style.display = "none"; return; }
+    const diff = (price / lastBacking - 1) * 100;
+    const prem = diff >= 0;
+    chip.className = "chip " + (prem ? "prem" : "disc");
+    chip.textContent = "Market " + price.toFixed(4) + " " + cfg.assetSym + " · " +
+                       (prem ? "+" : "") + diff.toFixed(1) + "% " + (prem ? "premium" : "discount");
+    chip.title = prem
+      ? "Trading above backing — minting gets you more than buying at this price."
+      : "Trading below backing — buying is cheaper than minting right now.";
+    chip.style.display = "inline-block";
+  }catch(_){ chip.style.display = "none"; }
+}
+
+
+
+/* ---------- boot ---------- */
+/* apply branding from SITE */
+$("explorerTab").href = EXPLORER_URL;
+if($("marketTab")) $("marketTab").href = MARKET_URL;
+$("whitepaperTab").href = WHITEPAPER_URL;
+(function(){ const b = $("buildTag"); if(b) b.textContent = "build " + BUILD; })();
+
+/* ── Custom RPC controller ─────────────────────────────────────────────── */
+function rpcIsCustom(){
+  return CHAIN.rpcs.length === 1 && CHAIN.publicRpcs.indexOf(CHAIN.rpcs[0]) === -1;
+}
+function rpcHost(u){ try{ return new URL(u).host; }catch(_){ return u; } }
+function paintRpcSel(){
+  const sel = $("rpcSel"); if(sel) sel.classList.toggle("custom", rpcIsCustom());
+}
+function setCustomOption(url){
+  const sel = $("rpcSel");
+  let opt = sel.querySelector("option[data-custom]");
+  if(!opt){
+    opt = document.createElement("option");
+    opt.setAttribute("data-custom","1");
+    sel.insertBefore(opt, sel.querySelector('option[value="__custom"]'));
+  }
+  opt.value = url;
+  opt.textContent = "\u2699 " + rpcHost(url);
+  sel.value = url;
+}
+function clearCustomOption(){
+  const opt = $("rpcSel").querySelector("option[data-custom]");
+  if(opt) opt.remove();
+}
+function buildRpcSel(){
+  const sel = $("rpcSel"); if(!sel) return;
+  sel.innerHTML = CHAIN.publicRpcs.map(function(u){
+      return '<option value="' + u + '">' + rpcHost(u) + '</option>'; }).join("")
+    + '<option value="__custom">\u2699 Custom RPC\u2026</option>';
+  if(rpcIsCustom()) setCustomOption(CHAIN.rpcs[0]);
+  else sel.value = CHAIN.rpcs[0];
+  paintRpcSel();
+}
+async function applyRpc(url){
+  if(!url){                                          // back to public defaults
+    CHAIN.rpcs = CHAIN.publicRpcs.slice();
+    try{ localStorage.removeItem("pv_rpc"); }catch(_){}
+    clearCustomOption();
+    $("rpcSel").value = CHAIN.rpcs[0];
+  } else if(CHAIN.publicRpcs.indexOf(url) !== -1){    // preferred public: keep failover
+    CHAIN.rpcs = [url].concat(CHAIN.publicRpcs.filter(function(u){ return u !== url; }));
+    try{ localStorage.setItem("pv_rpc", url); }catch(_){}
+    $("rpcSel").value = url;
+  } else {                                           // own node: use it exclusively
+    CHAIN.rpcs = [url];
+    try{ localStorage.setItem("pv_rpc", url); }catch(_){}
+    setCustomOption(url);
+  }
+  rpcIndex = 0;
+  readProvider = new ethers.JsonRpcProvider(CHAIN.rpcs[0], CHAIN.id, { staticNetwork: true });
+  rpcHealthy = false;
+  paintRpcSel();
+  setStatus("Switching RPC\u2026");
+  const ok = await ensureRpc();
+  paintRpcSel();
+  if(!ok){
+    setStatus("That RPC isn't responding \u2014 pick another endpoint from the dropdown.","err");
+    return;
+  }
+  setStatus("");
+  refresh();
+}
+$("rpcSel").onchange = function(e){
+  if(e.target.value !== "__custom"){ applyRpc(e.target.value); return; }
+  const isLocalCopy = location.protocol !== "https:";
+  const currentCustom = rpcIsCustom() ? CHAIN.rpcs[0] : "";
+  const restore = function(){ $("rpcSel").value = CHAIN.rpcs[0]; };
+  const raw = prompt(
+    "RPC endpoint this dapp reads vault data from:\n\n" +
+    "  https://rpc.mynode.example      (any public RPC, e.g. from Chainlist)\n" +
+    "  http://127.0.0.1:8545           (your own node \u2014 downloaded copies only)\n\n" +
+    "Leave blank to go back to the public endpoints.\n" +
+    "Saved in your browser only \u2014 never sent anywhere.",
+    currentCustom);
+  if(raw === null){ restore(); return; }                    // cancelled
+  const url = raw.trim();
+  if(url === ""){ applyRpc(null); return; }                 // reset to public
+  if(!/^https?:\/\/.+/.test(url)){
+    alert("RPC must start with https:// or http://"); restore(); return;
+  }
+  if(!isLocalCopy && /^http:\/\//.test(url)){
+    alert("Browsers block http:// RPCs on an https website (mixed content) \u2014 that's a browser rule, not ours.\n\n" +
+          "To read from a home node: tap \"Download this dapp\" in the footer and open the downloaded file. Local copies accept http:// RPCs.\n\n" +
+          "Or expose your node over https.");
+    restore(); return;
+  }
+  applyRpc(url);
+};
+buildRpcSel();
+$("explorerFootLink").href = EXPLORER_URL;
+$("whitepaperFootLink").href = WHITEPAPER_URL;
+document.title = SITE.title;
+$("brandName").textContent = SITE.brandName;
+$("brandTick").textContent = SITE.brandTick;
+if (SITE.logo) { $("brandLogo").src = SITE.logo; $("brandLogo").style.display = "block"; $("favicon").href = SITE.logo; }
+
+/* ── Download-this-app + integrity hash ──
+   Fetches the exact file the server is serving (not the live DOM), hashes
+   it with SHA-256, and offers it for download. A user running a verified
+   local copy is immune to frontend/DNS hijacking — they trust only the
+   contract. On file:// (already running locally) the block adapts. */
+(async function(){
+  const vb = $("verifyBlock");
+  /* a file:// page and a page served from your own device are both local copies */
+  const _isLocal = location.protocol === "file:" ||
+    /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+  if (_isLocal) {
+    vb.innerHTML = '<span style="color:var(--mint)">✓ You are running a local copy — no server trust required.</span>';
+    return;
+  }
+  try{
+    const res = await fetch(location.href, {cache:"no-store"});
+    const buf = await res.arrayBuffer();
+    const digest = await crypto.subtle.digest("SHA-256", buf);
+    const hex = [...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,"0")).join("");
+    $("fileHash").textContent = hex;
+    $("dlLink").onclick = (e)=>{
+      e.preventDefault();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([buf], {type:"text/html"}));
+      a.download = (location.pathname.split("/").pop() || "vaults") .replace(/\.html?$/,"") + ".html";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+  }catch(e){
+    $("fileHash").textContent = "unavailable (fetch blocked)";
+  }
+})();
+
+const bar=$("vaultbar");
+VAULTS.forEach(v=>{
+  const b=document.createElement("button");
+  b.className="vpill"; b.dataset.key=v.key; b.textContent=v.token;
+  b.onclick=()=>activateVault(v.key);
+  bar.appendChild(b);
+});
+
+/* ── Vault deep links ──────────────────────────────────────────────────────
+   #HEXstr-3000  or  ?vault=HEXstr-3000 opens that vault directly, so a single
+   vault can be linked from a post or from PulseVerify. The last vault used is
+   remembered in this browser. Priority: query > hash > remembered > first. */
+function validVaultKey(k){
+  if(!k) return null;
+  const hit = VAULTS.find(v => v.key.toLowerCase() === String(k).toLowerCase()
+                            || v.token.toLowerCase() === String(k).toLowerCase());
+  return hit ? hit.key : null;
+}
+function vaultFromUrl(){
+  let q = null;
+  try{ q = new URLSearchParams(location.search).get("vault"); }catch(_){}
+  return validVaultKey(q) || validVaultKey(decodeURIComponent((location.hash||"").replace(/^#/,"")));
+}
+function rememberVault(key){
+  try{ localStorage.setItem("ps_vault", key); }catch(_){}
+  try{
+    if(("#"+encodeURIComponent(key)) !== location.hash)
+      history.replaceState(null, "", "#"+encodeURIComponent(key));
+  }catch(_){}
+}
+window.addEventListener("hashchange", () => {
+  const k = vaultFromUrl();
+  if(k && (!cur || cur.cfg.key !== k)) activateVault(k);
+});
+
+let startKey = vaultFromUrl();
+if(!startKey){ try{ startKey = validVaultKey(localStorage.getItem("ps_vault")); }catch(_){} }
+activateVault(startKey || VAULTS[0].key).then(tryAutoConnect);
+</script>
+</body>
+</html>
