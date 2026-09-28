@@ -2,7 +2,7 @@
 # Machine-readable endpoints are served cross-origin so browser-based agents,
 # third-party dapps and MCP clients can fetch them without a proxy.
 
-/pulsestrategy.json
+/pulseStrategy.json
   Access-Control-Allow-Origin: *
   Access-Control-Allow-Methods: GET, OPTIONS
   Content-Type: application/json; charset=utf-8
