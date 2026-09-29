@@ -31,6 +31,8 @@ body::after{content:"";position:fixed;top:0;left:0;right:0;height:2px;z-index:80
 .wrap{max-width:1440px;width:100%;margin:0 auto;padding:0 32px 80px}
 a{color:var(--violet);text-decoration:none}
 a:hover{text-decoration:underline}
+#boardFind{color:var(--mut)}
+#boardFind:hover{color:var(--text)}
 h2{font-family:'Michroma';font-weight:400;font-size:15px;letter-spacing:.05em;margin:36px 0 14px;text-transform:uppercase}
 h2 small{display:block;font-family:'Space Grotesk';font-weight:400;font-size:12px;letter-spacing:0;text-transform:none;color:var(--mut);margin-top:4px}
 header{display:flex;justify-content:space-between;align-items:center;padding:20px 0 16px;position:sticky;top:0;background:rgba(11,11,16,.86);backdrop-filter:saturate(1.15) blur(16px);-webkit-backdrop-filter:saturate(1.15) blur(16px);border-bottom:1px solid var(--line);z-index:5;gap:12px;flex-wrap:nowrap}
@@ -492,7 +494,7 @@ pre.json{background:var(--panel2);border:1px solid var(--line);border-radius:12p
     <a href="https://pulsestrategy369.com" rel="noopener">PulseVerify</a> is the front page. The <a href="https://pulsestrategy369.com/whitepaper" rel="noopener">whitepaper</a> covers this launcher too — overview and how to. Download each page from its own footer.
   </div>
   <div>The contracts live on PulseChain and work without this page. This dapp reads the chain directly from your browser — no server, no database, no tracking.</div>
-  <div style="margin-top:10px"><a href="https://x.com/pulsestrategy" target="_blank" rel="noopener">@pulsestrategy</a> · the floor only rises · <span class="mono" id="buildTag">launcher v67 · 2026-09-29</span></div>
+  <div style="margin-top:10px"><a href="https://x.com/pulsestrategy" target="_blank" rel="noopener">@pulsestrategy</a> · the floor only rises · <span class="mono" id="buildTag">launcher v69 · 2026-09-29</span></div>
 </footer>
 </div>
 
@@ -2925,13 +2927,15 @@ function uniIn(amountOutW, reserveIn, reserveOut){
   return reserveIn*amountOutW*10000n/((reserveOut-amountOutW)*9971n)+1n;
 }
 async function spotVs(token, tDec, quote, qDec){
-  const p=await pxPair(PULSEX_V2_FACTORY, token, quote);
-  if(!p) return null;
-  const {r0,r1,t0}=await pairReserves(p);
+  const deep=await pxPairDeep(token, quote);
+  if(!deep) return null;
+  const {r0,r1,t0}=await pairReserves(deep.pair);
   const tokenIs0=t0.toLowerCase()===token.toLowerCase();
   const rT=tokenIs0?r0:r1, rQ=tokenIs0?r1:r0;
   if(rT===0n||rQ===0n) return null;
-  return { px: Number(ethers.formatUnits(rQ, qDec))/Number(ethers.formatUnits(rT, tDec)), rT, rQ, qDec, tDec };
+  let depth=0n;
+  try{ depth=(await toWpls(token, rT, tDec))+(await toWpls(quote, rQ, qDec)); }catch(_){}
+  return { px: Number(ethers.formatUnits(rQ, qDec))/Number(ethers.formatUnits(rT, tDec)), rT, rQ, qDec, tDec, depth, pair:deep.pair };
 }
 function bestLaunchArb(band, backing, pool, bridge){
   if(!pool || !(backing>0)) return null;
@@ -2980,19 +2984,28 @@ async function paintLaunchMkt(){
   const gen=++mktGen;
   const vault=cur.cfg.vault, asset=cur.cfg.assetAddr, sym=cur.cfg.assetSym, tok=cur.cfg.token;
   try{
-    let pool=await spotVs(vault, cur.tDec, asset, cur.aDec);
-    let px=pool?pool.px:null;
-    let bridge=null;
-    if(px==null){
-      for(const b of quoteAssets()){
-        if(b.addr.toLowerCase()===asset.toLowerCase()) continue;
-        const tB=await spotVs(vault, cur.tDec, b.addr, b.dec);
-        if(!tB) continue;
-        const aB=await spotVs(asset, cur.aDec, b.addr, b.dec);
-        if(aB && aB.px>0){ px=tB.px/aB.px; pool=tB; bridge=aB; break; }
-      }
+    const seen=new Set();
+    const cands=[];
+    for(const b0 of quoteAssets()){
+      const key=b0.addr.toLowerCase();
+      if(seen.has(key) || key===vault.toLowerCase()) continue;
+      seen.add(key);
+      const b=key===WPLS.toLowerCase()?{sym:"PLS", addr:WPLS, dec:18}:b0;
+      const hit=await spotVs(vault, cur.tDec, b.addr, b.dec);
+      if(hit) cands.push(Object.assign(hit, {sym:b.sym, addr:b.addr}));
     }
     if(gen!==mktGen || !cur || cur.cfg.vault!==vault) return;
+    cands.sort((a,b)=> (b.depth||0n)>(a.depth||0n) ? 1 : (a.depth===b.depth ? 0 : -1));
+    const best=cands[0];
+    if(!best){ box.style.display="none"; return; }
+    let px=best.px, bridge=null, pool=best, poolName=best.sym;
+    if(best.addr.toLowerCase()!==asset.toLowerCase()){
+      const aB=await spotVs(asset, cur.aDec, best.addr, best.qDec);
+      if(gen!==mktGen || !cur || cur.cfg.vault!==vault) return;
+      if(!aB || !(aB.px>0)){ box.style.display="none"; return; }
+      px=best.px/aB.px;
+      bridge=aB;
+    }
     if(!(px>0)){ box.style.display="none"; return; }
     const diff=(px/lastBacking-1)*100;
     const prem=diff>=0;
@@ -3013,9 +3026,10 @@ async function paintLaunchMkt(){
           +" · profit "+commaNum(ticket.profit, 2)+" "+sym;
       }else extra="Outside the band, but fees and price impact eat the edge.";
     }
+    if(gen!==mktGen || !cur || cur.cfg.vault!==vault) return;
     const mUsd=usdText(usdRaw(sym, px));
     box.style.display="block";
-    box.innerHTML='<span class="chip '+(prem?"prem":"disc")+'">Market '+px.toFixed(4)+" "+esc(sym)+(mUsd?" · "+mUsd:"")+" · "+(prem?"+":"")+diff.toFixed(1)+"% "+(prem?"premium":"discount")+'</span>'
+    box.innerHTML='<span class="chip '+(prem?"prem":"disc")+'">Market '+px.toFixed(4)+" "+esc(sym)+(mUsd?" · "+mUsd:"")+" · "+(prem?"+":"")+diff.toFixed(1)+"% "+(prem?"premium":"discount")+" · "+esc(poolName)+" pool"+'</span>'
       +'<div style="margin-top:8px;font-size:13px;color:var(--text)">'+esc(rec)+'</div>'
       +(extra?'<div style="margin-top:4px;font-size:12px;color:var(--mut)">'+esc(extra)+'</div>':'');
   }catch(_){ if(gen===mktGen) box.style.display="none"; }
@@ -3167,12 +3181,13 @@ function fmtUsd(wplsBn){
   if(abs===0) return "$0";
   return sign+"<$0.00000001";
 }
-function moneyW(wplsStr){
-  if(wplsStr==null || wplsStr==="" || wplsStr==="0") return "—";
+function moneyW(wplsStr, zeroAsZero){
+  if(wplsStr==null || wplsStr==="") return "—";
   try{
     const bn=BigInt(wplsStr);
-    if(bn===0n) return "—";
+    if(bn===0n && !zeroAsZero) return "—";
     if(boardUnit==="USD" && plsUsd) return fmtUsd(bn);
+    if(bn===0n) return "0 PLS";
     return fmtCompact(bn)+" PLS";
   }catch(_){ return "—"; }
 }
@@ -3212,7 +3227,7 @@ async function pairHistory(pair, tokenAddr, quoteAddr, nowT, nowQ){
   const res=await pairReserves(pair);
   const is0=res.t0.toLowerCase()===tokenAddr.toLowerCase();
   const span=await getLogsSpan(pair, [[SYNC_TOPIC, SWAP_TOPIC, MINT_TOPIC, BURN_TOPIC]], 1);
-  if(!span.ok) return { price24:readFailed(), price7:null, depth24:readFailed(), depth7:null, vol24:"0" };
+  if(!span.ok) return { price24:readFailed(), price7:null, depth24:readFailed(), depth7:null, vol24:null };
   const from=span.head - span.perDay;
   const logs=(span.logs||[]).slice().sort(byLogOrder);
   let volT=0n;
@@ -3222,7 +3237,7 @@ async function pairHistory(pair, tokenAddr, quoteAddr, nowT, nowQ){
     volT += is0 ? (a0in+a0out) : (a1in+a1out);
   }
   let vol24="0";
-  try{ vol24=(await toWpls(tokenAddr, volT, 18)).toString(); }catch(_){}
+  try{ vol24=(await toWpls(tokenAddr, volT, 18)).toString(); }catch(_){ vol24=null; }
   const syncs=logs.filter(l=>topic0(l)===SYNC_TOPIC && logBlock(l)>=from);
   if(!syncs.length) return { price24:flatDay(), price7:null, depth24:flatDay(), depth7:null, vol24 };
   const pre=preRawReserves(syncs[0], logs);
@@ -3302,17 +3317,23 @@ async function scoreVault(addr, withLogs, factoryIndex){
   let lpW=0n;
   const pools=[];
   for(const p of found){
+    let side=0n;
     try{
-      lpW += await toWpls(p.t0, p.r0, 18) + await toWpls(p.t1, p.r1, 18);
+      side = await toWpls(p.t0, p.r0, 18) + await toWpls(p.t1, p.r1, 18);
     }catch(_){}
+    p.depthW=side;
+    lpW += side;
     pools.push({ dex:"PulseX", pair:p.pair, token0:p.t0, token1:p.t1, quote:p.q.sym, reserve0:p.r0.toString(), reserve1:p.r1.toString() });
   }
-  found.sort((a,b)=> a.L===b.L ? 0 : (b.L>a.L ? 1 : -1));
-  const wplsP=found.find(p=>p.q.addr.toLowerCase()===WPLS.toLowerCase());
-  const priced=(wplsP && found[0] && wplsP.L*5n>=found[0].L) ? wplsP : found[0];
+  found.sort((a,b)=>{
+    const da=a.depthW||0n, db=b.depthW||0n;
+    if(da!==db) return db>da ? 1 : -1;
+    return a.L===b.L ? 0 : (b.L>a.L ? 1 : -1);
+  });
+  const priced=found[0]||null;
   const tDecN=Number(tDec)||18;
   const aDecN=Number(aDec)||18;
-  let dexPriceTxt=null, mcapWpls="0", priceWpls="0", vsVault=null, hist=null;
+  let dexPriceTxt=null, mcapWpls="0", priceWpls="0", vsVault=null, vsQuote=null, hist=null;
   let rT=0n, rQ=0n;
   if(priced && priced.r0>0n && priced.r1>0n){
     const tokenIs0=priced.t0.toLowerCase()===addr.toLowerCase();
@@ -3326,10 +3347,23 @@ async function scoreVault(addr, withLogs, factoryIndex){
       mcapWpls=mcap.toString();
       const pxW=await toWpls(priced.q.addr, qPer, priced.q.dec);
       priceWpls=pxW.toString();
-      const fairAsset=backing * (10n**BigInt(aDecN)) / (10n**18n);
-      const fairW=await toWpls(asset, fairAsset, aDecN);
-      if(fairW>0n && pxW>0n) vsVault=Number(pxW * 10000n / fairW)/100 - 100;
     }
+  }
+  const vsOf=async(pool)=>{
+    if(!pool || !(pool.r0>0n) || !(pool.r1>0n)) return null;
+    const tokenIs0=pool.t0.toLowerCase()===addr.toLowerCase();
+    const rTv=tokenIs0?pool.r0:pool.r1, rQv=tokenIs0?pool.r1:pool.r0;
+    if(rTv===0n) return null;
+    const qPer=rQv * (10n**BigInt(tDecN)) / rTv;
+    const pxW=await toWpls(pool.q.addr, qPer, pool.q.dec);
+    const fairAsset=backing * (10n**BigInt(aDecN)) / (10n**18n);
+    const fairW=await toWpls(asset, fairAsset, aDecN);
+    if(!(fairW>0n && pxW>0n)) return null;
+    return Number(pxW * 10000n / fairW)/100 - 100;
+  };
+  if(priced){
+    vsVault=await vsOf(priced);
+    vsQuote=priced.q.sym;
   }
   let floor={floor24:null,floor7:null};
   if(withLogs){
@@ -3344,10 +3378,10 @@ async function scoreVault(addr, withLogs, factoryIndex){
     vaultBalance: vb.toString(), totalSupply: ts.toString(),
     tvlWpls: tvlW.toString(), lpWpls: lpW.toString(),
     scoreWpls: (tvlW+lpW).toString(),
-    mcapWpls, priceWpls, dexPriceTxt, vsVault,
+    mcapWpls, priceWpls, dexPriceTxt, vsVault, vsQuote,
     price24: hist&&hist.price24, price7: hist&&hist.price7,
     depth24: hist&&hist.depth24, depth7: hist&&hist.depth7,
-    vol24: hist?hist.vol24:"0",
+    vol24: hist ? hist.vol24 : (withLogs ? "0" : null),
     floor24: floor.floor24, floor7: floor.floor7,
     pools, scored:!!withLogs, failed:false,
     factoryIndex: typeof factoryIndex==="number" ? factoryIndex : -1
@@ -3378,11 +3412,15 @@ function chgCell(a,b){
   };
   return bit(a)+' <span class="chg-flat">/</span> '+bit(b);
 }
-function vsCell(v){
-  if(v==null || !isFinite(v)) return "—";
-  const cls=v>0.5?"chg-up":v<-0.5?"chg-dn":"chg-flat";
-  const lab=v>=0 ? v.toFixed(2)+"% premium" : Math.abs(v).toFixed(2)+"% discount";
-  return '<span class="'+cls+'">'+lab+"</span>";
+function vsCell(r){
+  const line=(v,q)=>{
+    if(v==null || !isFinite(v)) return "";
+    const cls=v>0.5?"chg-up":v<-0.5?"chg-dn":"chg-flat";
+    const lab=v>=0 ? v.toFixed(2)+"% premium" : Math.abs(v).toFixed(2)+"% discount";
+    return '<div class="'+cls+'">'+lab+(q?" · "+esc(q)+" pool":"")+'</div>';
+  };
+  const html=line(r && r.vsVault, r && r.vsQuote)+line(r && r.vsAlt, r && r.vsAltQuote);
+  return html || "—";
 }
 function paintBoard(rows){
   if($("unitPls")) $("unitPls").classList.toggle("on", boardUnit==="PLS");
@@ -3435,8 +3473,10 @@ function paintBoard(rows){
       +bm("Market cap", esc(moneyW(r.mcapWpls)))
       +bm("TVL", esc(moneyW(r.tvlWpls)))
       +bm("Pool depth", esc(moneyW(r.lpWpls)))
-      +bm("Vol 24h", esc(moneyW(r.vol24)))
-      +bm("Vs vault", vsCell(r.vsVault))
+      +bm("Vol 24h", (r.vol24==null || r.vol24==="")
+        ? '<span class="chg-flat" title="24h log read failed">—</span>'
+        : esc(moneyW(r.vol24, true)))
+      +bm("Vs vault", vsCell(r))
       +bm("Supply", esc(fmtCompact(BigInt(r.totalSupply||"0"), r.tDec||18)+" "+(r.symbol||"")))
       +bm("Creator", creator)
       +bm("Launched", esc(launched)+(age!=null?" · "+age+"d":""))
