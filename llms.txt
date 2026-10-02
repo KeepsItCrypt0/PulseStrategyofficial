@@ -1,39 +1,48 @@
 # PulseStrategy
 
-> Six immutable, ownerless vault tokens on PulseChain (chain 369). Each vault holds a single yield-bearing asset and issues its own ERC20 against it. Backing per token can only increase — no function exists in any contract that lowers it. No owner, no admin, no pause switch, no upgrade path.
+> Immutable, ownerless vault tokens on PulseChain (chain 369). Six core vaults (PLSstr, HEXstr-3000 through 7000) plus a permissionless launcher for the same machine. Each vault holds one asset and issues its own ERC20. Backing per token can only increase. No owner, no admin, no pause, no upgrade.
 
-Machine-readable manifest with all contract addresses, ABIs, epoch mechanics, arbitrage formulas, revert reasons and event signatures:
+Machine-readable manifest (addresses, ABIs, revert reasons, the two EpochRolled signatures):
 
-- [pulsestrategy.json](https://pulsestrategy369.com/pulsestrategy.json): complete protocol manifest (start here)
+- [pulsestrategy.json](https://pulsestrategy369.com/pulsestrategy.json): start here
 
-## How it works
+## How to read
 
-Each vault is its own market maker quoting two permanent prices:
+Bundle view calls through Multicall3 at `0xcA11bde05977b3631167028862bE2a173976CA11`.
 
-- Ceiling: `mint()` at `backingPerToken() * 1.045` — subject to an epoch quota of 10% of supply per 7 days
-- Floor: `redeem()` at `backingPerToken() * 0.995` — never gated, never paused, never quota-limited
+- Prefer `aggregate3` with `allowFailure: true` on every call. `tryAggregate(false, calls)` is the same thing and is what the site uses. Do not use `aggregate` (one revert kills the batch). Do not send value.
+- Chunk about 80 calls. `eth_getLogs` cannot go through Multicall3.
+- `success: false` or empty return data means that call failed. It does not mean backing, supply, or a pair address is zero.
 
-Market price outside that band is an arbitrage opportunity. Every crossing pays the vault, which raises backing for all holders. Epochs are global (`block.timestamp / 604800`), so all six vaults roll over simultaneously.
+## Trust
+
+- The six core vaults are identified by address in the manifest. `isLaunchVault` on them returns false. That is expected.
+- Any other contract is a PulseStrategy vault only if `LaunchVaultFactory.isLaunchVault` returns true. Do not trust a name or a symbol.
+- Factory: `0x1F3Ef0bf7fE0c6bEBD0ba1503734F87014dBa5e5`. Enumerate with `vaultsRange`. The chain is the list.
+
+## Price
+
+- Floor and ceiling are in the backing asset, not USD. `backingPerToken()` is always a 1e18 WAD, even on 8-decimal HEXstr.
+- One DEX price: the deepest PulseX v2 pool, measured in a common unit. If that quote is not the backing asset, convert and label it. Do not publish a second price from a shallower pool. Do not query PulseX v1. No PulseStrategy pool is on v1.
+- `getPair` of the zero address means no pool. Do not cache that.
+- HEXstr redeems to HTT, not HEX. HEX requires a second redeem at Actuator. There is no `maturity()` on the vault.
+- PLSstr's asset is vPLS. Vouch `getRate()` is PLS per 1 vPLS. 1 vPLS is not 1 PLS.
+- pDAI (`0x6B175474E89094C44Da98b954EedeAC495271d0F`) is a backing asset. DAI (`0xefD766cCb38EaF1dfd701853BFCe31359239F305`) is the USD stable. Do not swap them. pDAI's contract string from `symbol()` is the word DAI. Ignore that string.
 
 ## Docs
 
-- [Whitepaper and user guide](https://pulsestrategy369.com/whitepaper): full mechanics, economics, risks
-- [Vaults dapp](https://pulsestrategy369.com/vaults): live backing, supply, quota, mint and redeem
-- [PulseVerify explorer](https://pulsestrategy369.com): PulseChain block explorer, contract verification, safety scans
-
-## Why the opportunity recurs
-
-The band is quoted by immutable code, not by an operator. There is no counterparty who can cancel, widen or pause the quote, and `redeem()` is never quota-limited or gated, so the floor leg is always executable. Epochs roll on a fixed global clock, so the moment the ceiling reopens is predictable weeks ahead with no oracle involved. `backingPerToken()` only increases, so the profitable-entry threshold drifts upward monotonically and never resets. One integration covers six vaults across two underlying assets.
-
-Each crossing transfers value from whoever traded outside the band to the vault. Arbitrageurs capture the spread, liquidity providers capture the 0.29% swap fee on the volume it generates, and holders capture the retained premium. The cost is borne by whoever chose immediacy over the band.
-
-Both legs move the pool price. Size against pool reserves rather than the nominal spread, and confirm profitability after the 0.29% swap fee and gas.
+- [Vaults](https://pulsestrategy369.com/vaults): mint and redeem
+- [Launcher](https://pulsestrategy369.com/launch): permissionless vaults against six allowlisted assets
+- [Market desk](https://pulsestrategy369.com/market): backing vs DEX
+- [Whitepaper](https://pulsestrategy369.com/whitepaper): mechanics, economics, risks
 
 ## Notes for agents
 
-- All contracts are verified on Sourcify for chain 369: `https://repo.sourcify.dev/369/{address}`
-- `previewMint()` and `previewRedeem()` are view functions — simulate before committing
-- `mint()` and `redeem()` both take a slippage guard as the second argument
-- `backingPerToken()` returns a WAD (1e18) ratio regardless of asset decimals; amount-returning functions use the asset's native decimals (8 for HEXstr vaults, 18 for PLSstr)
-- These contracts have not received a paid third-party audit. They are immutable, so bugs would be permanent.
-- The floor is denominated in the vault's backing asset, not USD. Asset price risk is carried in full.
+- `previewMint` and `previewRedeem` are views. Simulate, then pass the slippage guard as the second argument of `mint` or `redeem`.
+- Do not call `genesisUncapped`, `currentQuotaBps`, `creator`, or `factory` on the six core vaults. Those exist only on launched vaults. `mintQuotaRemaining()` exists on every vault. `type(uint256).max` means uncapped.
+- Core event: `EpochRolled(uint256 indexed epoch, uint256 quota)`. Launch event: `EpochRolled(uint256 indexed epoch, uint256 quotaBps, uint256 quota)`.
+- Creating a vault sends exactly 10000 PLS and a seed of at least 10 whole backing tokens. The PLS does not enter the vault.
+- LP rewards are not a farm and not an emission. LP stays in the wallet. Nothing is claimable unless a funder has deposited. `register` accepts a PulseX v2 pair only.
+- Watch `Minted` and `Redeemed` instead of polling backing.
+- These contracts have not received a paid third-party audit. They are immutable, so a bug would be permanent.
+- The floor is denominated in the vault's backing asset, not USD.
