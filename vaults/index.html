@@ -711,7 +711,7 @@ try{
   }
 }catch(_){}
 
-const BUILD = "v86 \u00b7 2026-10-01";   // shown in the footer so users can tell builds apart
+const BUILD = "v87 \u00b7 2026-10-01";   // shown in the footer so users can tell builds apart
 const WC_PROJECT_ID = "dfa53b26ebcaa8d274b2a7f6ddc66cb0";   // free at https://cloud.reown.com (enables WalletConnect)
 /* Paste after Remix deploy of contracts/LPFeeShare.sol. Leave blank to hide the claim UI.
    Ownerless. Core deposits: protocol-fee wallet. Launch deposits: that vault's creator. */
@@ -1693,7 +1693,7 @@ function fillVaultSwapSelects(){
   got.innerHTML=html(gotV);
 }
 let swapVaultKey=null;
-let swapSlipBps=100;
+let swapSlipBps=50;
 function paintSlipChips(el, curBps, onPick){
   if(!el) return;
   el.innerHTML=[50,100,300,500,1000,1500].map(b=>{
