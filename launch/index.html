@@ -468,7 +468,7 @@ pre.json{background:var(--panel2);border:1px solid var(--line);border-radius:12p
       <button class="action wide" id="pxRemBtn">Remove liquidity</button>
     </div>
     <div class="status" id="pxStatus"></div>
-    <p class="px-lead" style="margin:12px 0 0">Router <span class="mono">0x165C3410fC91EF562C50559f7d2289fEbed552d9</span> · factory v2. 1% slippage. New pools are PulseX v2.</p>
+    <p class="px-lead" style="margin:12px 0 0">Router <span class="mono">0x165C3410fC91EF562C50559f7d2289fEbed552d9</span> · factory v2. 0.5% slippage. New pools are PulseX v2.</p>
   </section>
 
   <div class="note" id="vaultMeta">Vault: not open</div>
@@ -495,7 +495,7 @@ pre.json{background:var(--panel2);border:1px solid var(--line);border-radius:12p
     <a href="https://pulsestrategy369.com" rel="noopener">PulseVerify</a> is the front page. The <a href="https://pulsestrategy369.com/whitepaper" rel="noopener">whitepaper</a> covers this launcher too — overview and how to. Download each page from its own footer.
   </div>
   <div>The contracts live on PulseChain and work without this page. This dapp reads the chain directly from your browser — no server, no database, no tracking.</div>
-  <div style="margin-top:10px"><a href="https://x.com/pulsestrategy" target="_blank" rel="noopener">@pulsestrategy</a> · the floor only rises · <span class="mono" id="buildTag">launcher v74 · 2026-10-01</span></div>
+  <div style="margin-top:10px"><a href="https://x.com/pulsestrategy" target="_blank" rel="noopener">@pulsestrategy</a> · the floor only rises · <span class="mono" id="buildTag">launcher v75 · 2026-10-01</span></div>
 </footer>
 </div>
 
@@ -1914,7 +1914,7 @@ async function doAction(){
 }
 
 /* PulseX v2 on the open vault */
-let pxTab="add", pxLastLp="tok", pxHasPool=false, pxSlipBps=100, pxRemPct=0;
+let pxTab="add", pxLastLp="tok", pxHasPool=false, pxSlipBps=50, pxRemPct=0;
 function setPxStatus(m,c=""){ const s=$("pxStatus"); if(s){ s.textContent=m||""; s.className="status "+(c||""); } }
 function feeShareConfigured(){
   return !!(LP_FEE_SHARE && ethers.isAddress(LP_FEE_SHARE) && LP_FEE_SHARE !== ethers.ZeroAddress);
