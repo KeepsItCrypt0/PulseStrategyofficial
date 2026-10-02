@@ -1,11 +1,19 @@
 {
   "name": "PulseStrategy",
-  "version": "1.5.0",
-  "updated": "2026-08-02",
-  "description": "A family of immutable, ownerless vault tokens on PulseChain. Each vault holds a single yield-bearing asset and issues its own ERC20 against it. Backing per token can only increase; no function exists that decreases it.",
+  "version": "1.7.1",
+  "updated": "2026-10-01",
+  "description": "Immutable, ownerless vault tokens on PulseChain. Each vault holds a single asset and issues its own ERC20 against it. Backing per token can only increase; no function exists that decreases it. Six core vaults are PLSstr and HEXstr-3000 through 7000. Anyone can deploy the same machine through the launcher against an allowlisted asset.",
   "website": "https://pulsestrategy369.com",
   "whitepaper": "https://pulsestrategy369.com/whitepaper",
   "x": "https://x.com/pulsestrategy",
+  "pages": {
+    "vaults": "https://pulsestrategy369.com/vaults",
+    "launch": "https://pulsestrategy369.com/launch",
+    "market": "https://pulsestrategy369.com/market",
+    "whitepaper": "https://pulsestrategy369.com/whitepaper",
+    "manifest": "https://pulsestrategy369.com/pulsestrategy.json",
+    "llms": "https://pulsestrategy369.com/llms.txt"
+  },
   "chain": {
     "name": "PulseChain",
     "chainId": 369,
@@ -16,342 +24,480 @@
     "explorer": "https://otter.pulsechain.com",
     "blockTimeSec": 10
   },
-  "economics": {
-    "mintPremiumBps": 450,
-    "protocolFeeBps": 50,
-    "redeemFeeBps": 50,
-    "epochLengthSeconds": 604800,
-    "epochQuotaBps": 1000,
-    "notes": [
-      "A minter pays backing x 1.045. Of that 4.5%, 4.0 points remain in the vault and 0.5 points transfer to the protocol fee address. The minter's price is unaffected by the split.",
-      "A redeemer receives pro-rata assets minus 0.5%, which remains in the vault for remaining holders.",
-      "Redeeming 100% of outstanding supply waives the redemption fee entirely (last-redeemer waiver).",
-      "Each 7-day epoch allows minting of at most 10% of the supply that existed at the epoch's first mint. Epochs are global: epoch = block.timestamp / 604800, so all vaults roll over simultaneously.",
-      "While totalSupply == 0 the epoch quota is unlimited (genesis). This persists across epoch boundaries until the first mint occurs.",
-      "Redemption is never quota-limited, paused, or gated."
+  "agent": {
+    "trust": [
+      "The six core vaults are trusted by the addresses in vaults[]. isLaunchVault on those six returns false. That is expected. Do not reject them.",
+      "Every other vault is a PulseStrategy launch vault only when LaunchVaultFactory.isLaunchVault(vault) returns true. A matching name or symbol is not proof.",
+      "The factory's vaultsRange is the list of launched vaults. A hosted JSON is only a cache and goes stale."
+    ],
+    "reads": [
+      "Bundle view calls. One reverted vault must not fail the rest.",
+      "success false or empty bytes means that call failed. Do not decode it as zero backing, zero supply, or a zero address pair.",
+      "getPair returning the zero address means no pool. Do not cache that result.",
+      "eth_getLogs cannot be sent through Multicall3. 24h volume and price windows are log queries. A successful empty log is no change (volume 0), not a failed read.",
+      "Do not call genesisUncapped, currentQuotaBps, creator, or factory on the six core vaults. Those views exist only on LaunchVault. mintQuotaRemaining and timeToNextEpoch exist on both.",
+      "Do not reimplement quota decay. Call currentQuotaBps and mintQuotaRemaining on a launch vault, and mintQuotaRemaining on a core vault.",
+      "There is no maturity() on any vault. Actuator dates in this file are desk labels."
+    ],
+    "price": [
+      "backingPerToken() is a 1e18 WAD ratio on every vault, including 8-decimal HEXstr. Amount functions use the asset's own decimals.",
+      "Quote one DEX price, from the deepest PulseX v2 pool. Depth is value in a common unit, not a raw reserve product of an 8-decimal token against an 18-decimal token. Do not query PulseX v1. No PulseStrategy pool is on v1.",
+      "If that pool's quote token is not the backing asset, convert through the quote. Label the quote. Do not also publish the shallower backing-asset pool as a second premium.",
+      "Ceiling is backing * 1.045 in the backing asset. Floor is backing * 0.995. Neither number is USD.",
+      "HEXstr redeem pays HTT, not HEX. PLSstr's asset is vPLS. 1 vPLS is not 1 PLS."
     ]
   },
+  "multicall3": {
+    "address": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "chainId": 369,
+    "sourcify": "https://repo.sourcify.dev/369/0xcA11bde05977b3631167028862bE2a173976CA11",
+    "note": "Public read helper already on PulseChain. Not a PulseStrategy contract. Do not send value. Confirmed: aggregate3 and tryAggregate both execute, and getChainId returns 369.",
+    "prefer": "aggregate3",
+    "allowFailure": true,
+    "chunk": 80,
+    "doNotUse": "aggregate(Call[]) — one revert reverts the whole eth_call",
+    "abi": [
+      "function aggregate3((address target, bool allowFailure, bytes callData)[] calls) payable returns ((bool success, bytes returnData)[])",
+      "function tryAggregate(bool requireSuccess, (address target, bytes callData)[] calls) payable returns ((bool success, bytes returnData)[])"
+    ],
+    "equivalent": "tryAggregate(false, calls) is the same as aggregate3 with allowFailure true on every call. The site uses tryAggregate(false). Agents may use either.",
+    "notIncluded": ["eth_getLogs", "eth_getBlockByNumber", "any call that must revert the batch"]
+  },
+  "economics": {
+    "core": {
+      "mintPremiumBps": 450,
+      "vaultRetainBps": 400,
+      "protocolFeeBps": 50,
+      "creatorFeeBps": 0,
+      "redeemFeeBps": 50,
+      "epochLengthSeconds": 604800,
+      "epochQuotaBps": 1000,
+      "notes": [
+        "A minter pays backing x 1.045. Of that 4.5%, 4.0 points remain in the vault and 0.5 points transfer to the protocol fee address.",
+        "A redeemer receives pro-rata assets minus 0.5%, which remains in the vault. Redeeming 100% of supply waives the fee.",
+        "Each 7-day epoch allows minting of at most 10% of supply. Epochs are global: epoch = block.timestamp / 604800.",
+        "Genesis epoch is uncapped until it rolls. Core vaults have no genesisUncapped() view; read mintQuotaRemaining(). uint256 max means uncapped.",
+        "Redemption is never quota-limited, paused, or gated."
+      ]
+    },
+    "launcher": {
+      "mintPremiumBps": 450,
+      "vaultRetainBps": 350,
+      "protocolFeeBps": 50,
+      "creatorFeeBps": 50,
+      "redeemFeeBps": 50,
+      "epochLengthSeconds": 604800,
+      "genesisUncapped": true,
+      "fullRateEpochs": 13,
+      "decayEpochs": 39,
+      "floorQuotaBps": 100,
+      "initialQuotaBps": [500, 1000],
+      "launchFeePls": "10000",
+      "minSeedTokens": 10,
+      "nameMaxChars": 32,
+      "symbolMaxChars": 12,
+      "notes": [
+        "Same 4.5% mint premium, split 3.5 vault / 0.5 protocol / 0.5 creator. Creator fee is paid in the backing asset, hardcoded, and cannot be changed.",
+        "Genesis epoch is uncapped. Then the creator's chosen 5% or 10% holds for 13 weeks, decays linearly to 1% over 39 weeks, and stays at 1%. Read currentQuotaBps() rather than reproducing the step.",
+        "Creating a vault costs exactly 10000 PLS (10000 ether wei) to the protocol fee address, plus a seed mint of at least 10 whole tokens of the backing asset. The PLS does not enter the vault. Short or extra PLS reverts WrongLaunchFee.",
+        "Names and symbols are unique on this factory, ASCII case-insensitive. Name 1–32 chars. Symbol 1–12 chars.",
+        "Trust a vault only if isLaunchVault(vault) returns true, unless it is one of the six core addresses in vaults[].",
+        "Compile LaunchVault with solc 0.8.29, optimizer on, EVM shanghai. A cancun build uses MCOPY, which PulseChain rejects, and createVault then reverts."
+      ]
+    }
+  },
   "arbitrage": {
-    "description": "Each vault is its own market maker quoting two permanent prices. Market price outside this band is a risk-free trade.",
-    "ceiling": "backingPerToken() * 1.045  \u2014 the cost to mint new supply from the contract (subject to epoch quota)",
-    "floor": "backingPerToken() * 0.995  \u2014 the amount redeemable from the contract (never limited)",
+    "description": "Each vault quotes a mint ceiling and a redeem floor in its backing asset. A DEX price outside that band can be arbitraged. It is not risk-free.",
+    "ceiling": "backingPerToken() * 1.045 — cost to mint, subject to epoch quota",
+    "floor": "backingPerToken() * 0.995 — redeem value, never limited; fee waived if the entire supply is redeemed",
+    "notRiskFree": [
+      "Pool slippage can erase the spread. Size against reserves of the pool you will actually trade.",
+      "Mint quota can block the ceiling leg.",
+      "Gas is nonzero.",
+      "The backing asset can fall in USD. The floor is in that asset, not dollars.",
+      "HEXstr redemption pays HTT. HEX still requires a second step at Actuator."
+    ],
     "opportunities": [
       {
-        "condition": "DEX price > backingPerToken() * 1.045",
-        "action": "mint from the vault contract, sell into the DEX pool",
+        "condition": "DEX price > backingPerToken() * 1.045, after swap fee",
+        "action": "mint from the vault, sell into the pool",
         "constraint": "requires mintQuotaRemaining() > 0"
       },
       {
-        "condition": "DEX price < backingPerToken() * 0.995",
-        "action": "buy from the DEX pool, redeem at the vault contract",
-        "constraint": "none \u2014 redemption is always open"
+        "condition": "DEX price < backingPerToken() * 0.995, after swap fee",
+        "action": "buy from the pool, redeem at the vault",
+        "constraint": "redemption is always open"
       }
     ],
-    "notes": [
-      "backingPerToken() returns a WAD (1e18-scaled) ratio regardless of the asset's decimals, because vault tokens mirror the asset's decimals.",
-      "Amount-returning functions (vaultBalance, previewMint, previewRedeem, mintQuotaRemaining) are denominated in the asset's native decimals.",
-      "timeToNextEpoch() returns seconds until the quota refills \u2014 the most contested moment of each epoch.",
-      "Both mint() and redeem() accept a slippage guard as their second argument."
-    ],
     "computation": {
-      "notation": "B = backingPerToken() / 1e18 (assets per vault token). P = DEX price of the vault token in the same asset. F = 0.0029 (PulseX 0.29% swap fee).",
-      "ceilingArb": "Profitable when P * 0.9971 > B * 1.045, i.e. P > B * 1.048038. Steps: approve asset to the vault -> mint(assetIn, minTokensOut) -> sell tokens into the pool via PulseXRouter02. Bounded by mintQuotaRemaining().",
-      "floorArb": "Profitable when P / 0.9971 < B * 0.995, i.e. P < B * 0.992115. Steps: buy tokens from the pool via PulseXRouter02 -> redeem(tokenAmount, minAssetOut). Never quota-bounded.",
-      "sizing": "Both legs move the pool price, so size against pool reserves, not just the spread. Simulate the swap output and call previewMint/previewRedeem in the same block before committing.",
-      "gasNote": "PulseChain gas is cheap but nonzero; subtract it from expected profit. Thin pools mean slippage usually binds before the quota does.",
-      "netBand": "Accounting for the 0.29% swap fee, the no-arb band is approximately B * 0.9921 to B * 1.0480 \u2014 about 5.6% wide. Inside it, no risk-free trade exists."
+      "notation": "B = backingPerToken() / 1e18. P = DEX price of the vault token in the same asset, from the deepest pool only. F = 0.0029 PulseX v2 swap fee (amountOut keeps 9971/10000).",
+      "ceilingArb": "Spread survives the swap fee only when P > B * 1.048038. Still must clear quota, slippage, and gas.",
+      "floorArb": "Spread survives the swap fee only when P < B * 0.992115. Still must clear slippage and gas.",
+      "sizing": "Simulate the swap and call previewMint or previewRedeem in the same block. Do not trust this file over those calls. Mint math uses the token's balance increase, not the requested amount, so a fee-on-transfer asset delivers fewer tokens than the argument.",
+      "poolRule": "PulseX v2 only. If several v2 pairs exist, the deepest wins. One price only. Do not query PulseX v1."
     }
   },
   "interface": {
-    "abiSource": "Verified on Sourcify for chain 369; fetch at https://repo.sourcify.dev/369/{vaultAddress}",
-    "read": [
-      "backingPerToken() view returns (uint256)  \u2014 WAD-scaled assets per vault token",
-      "vaultBalance() view returns (uint256)  \u2014 assets held, in asset decimals",
+    "abiSource": "Verified on Sourcify for chain 369; fetch at https://repo.sourcify.dev/369/{address}",
+    "sharedRead": [
+      "backingPerToken() view returns (uint256) — WAD-scaled assets per vault token. Always 1e18 scale, even when decimals are 8.",
+      "vaultBalance() view returns (uint256) — asset.balanceOf(vault), asset decimals",
       "totalSupply() view returns (uint256)",
+      "decimals() view returns (uint8) — 18 on PLSstr, 8 on HEXstr. A launch vault copies its asset's decimals.",
+      "asset() view returns (address)",
       "previewMint(uint256 assetIn) view returns (uint256 tokensOut)",
       "previewRedeem(uint256 tokenAmount) view returns (uint256 assetOut, uint256 assetFee)",
-      "mintQuotaRemaining() view returns (uint256)",
-      "timeToNextEpoch() view returns (uint256)",
-      "totalProtocolFees() view returns (uint256)"
+      "mintQuotaRemaining() view returns (uint256) — type(uint256).max while uncapped",
+      "timeToNextEpoch() view returns (uint256)"
+    ],
+    "launchOnlyRead": [
+      "genesisUncapped() view returns (bool)",
+      "currentQuotaBps() view returns (uint256)",
+      "initialQuotaBps() view returns (uint256)",
+      "creator() view returns (address)",
+      "factory() view returns (address)"
     ],
     "write": [
-      "mint(uint256 assetIn, uint256 minTokensOut) returns (uint256)  \u2014 requires prior ERC20 approval of the asset to the vault",
-      "redeem(uint256 tokenAmount, uint256 minAssetOut) returns (uint256)  \u2014 no approval needed"
+      "mint(uint256 assetIn, uint256 minTokensOut) returns (uint256)",
+      "redeem(uint256 tokenAmount, uint256 minAssetOut) returns (uint256)",
+      "mintTo(uint256 assetIn, uint256 minTokensOut, address to) returns (uint256) — launch vaults. Asset is pulled from msg.sender."
+    ],
+    "eventsToWatch": [
+      "Minted — backing changed because someone entered. newBackingPerToken is WAD-scaled.",
+      "Redeemed — backing changed because someone exited.",
+      "Do not poll backingPerToken if you can subscribe to these."
     ]
   },
   "vaults": [
     {
       "symbol": "PLSstr",
       "name": "PulseStrategy",
+      "kind": "core",
+      "isLaunchVault": false,
       "address": "0x71ff5C9C9938E39E819246ef939FFb5Fd228922d",
       "decimals": 18,
       "asset": {
         "symbol": "vPLS",
-        "name": "Vouch liquid staked PLS",
         "address": "0x79BB3A0Ee435f957ce4f54eE8c3CFADc7278da0C",
-        "decimals": 18
+        "decimals": 18,
+        "note": "Vouch liquid-staked PLS. Not PLS. See references.vouch."
       },
       "term": "perpetual",
-      "yieldNote": "vPLS is value-accruing: the vault's vPLS balance does not grow, but each vPLS becomes redeemable for more PLS over time as Vouch validators earn staking rewards.",
       "pools": [
         {
           "pair": "PLSstr/WPLS",
           "dex": "PulseX v2",
-          "address": "0x38b204b4f9c38a5115186b1E20d55884a97ed1de"
+          "address": "0x38b204b4f9c38a5115186b1E20d55884a97ed1de",
+          "role": "Known deep PulseX v2 pool. If another v2 quote is deeper, that quote wins. Do not check v1."
         }
       ],
-      "sourcify": "https://repo.sourcify.dev/369/0x71ff5C9C9938E39E819246ef939FFb5Fd228922d",
-      "explorer": "https://otter.pulsechain.com/address/0x71ff5C9C9938E39E819246ef939FFb5Fd228922d"
+      "sourcify": "https://repo.sourcify.dev/369/0x71ff5C9C9938E39E819246ef939FFb5Fd228922d"
     },
     {
       "symbol": "HEXstr-7000",
-      "name": "HEXStrategy-7000",
+      "kind": "core",
+      "isLaunchVault": false,
       "address": "0x9DeE9ee99228931AE9bF579407ff3608aFe231D3",
       "decimals": 8,
       "asset": {
         "symbol": "HTT-7000",
-        "name": "Actuator Finance staked-HEX claim, day 7000",
         "address": "0x47810bb3ECDc6b080CeB2d39E769F21Ff14AB7E9",
         "decimals": 8
       },
       "term": "dated",
-      "redemptionDay": "2039-01-31",
-      "yieldNote": "HTT trades at a discount to HEX that closes as its redemption day approaches, redeeming 1:1 for HEX at maturity.",
-      "windDown": "The vault cannot call Actuator's redemption. Holders must exit in two steps: redeem HEXstr at the vault for HTT, then redeem HTT at Actuator Finance for HEX, at or before the redemption day.",
+      "maturity": {
+        "date": "2039-01-31",
+        "source": "Actuator date shown on the market desk. Not vault storage. No maturity() function."
+      },
+      "windDown": "Redeem HEXstr for HTT, then redeem HTT at Actuator for HEX. The vault cannot call Actuator.",
       "pools": [
         {
           "pair": "HEXstr-7000/HEX",
           "dex": "PulseX v2",
-          "address": "0x6F5a5387dd6aDAf5fE5A0340144162785fd6AC7F"
+          "address": "0x6F5a5387dd6aDAf5fE5A0340144162785fd6AC7F",
+          "role": "Vault-token pool"
         }
       ],
-      "sourcify": "https://repo.sourcify.dev/369/0x9DeE9ee99228931AE9bF579407ff3608aFe231D3",
-      "explorer": "https://otter.pulsechain.com/address/0x9DeE9ee99228931AE9bF579407ff3608aFe231D3"
+      "backingAssetPool": {
+        "pair": "HTT-7000/HEX",
+        "dex": "PulseX v2",
+        "address": "0x0d37481cD2c2E1a309a159Fd08D9F6eFd0a1F224",
+        "role": "Prices the backing HTT in HEX. Not a second vault-token premium."
+      },
+      "sourcify": "https://repo.sourcify.dev/369/0x9DeE9ee99228931AE9bF579407ff3608aFe231D3"
     },
     {
       "symbol": "HEXstr-6000",
-      "name": "HEXStrategy-6000",
+      "kind": "core",
+      "isLaunchVault": false,
       "address": "0x369206C9566F9982Ba14fd86897D512b6dBC6602",
       "decimals": 8,
       "asset": {
         "symbol": "HTT-6000",
-        "name": "Actuator Finance staked-HEX claim, day 6000",
         "address": "0xcdBFaf528c7CeA55d0AEbdB93C218D6f23B24af3",
         "decimals": 8
       },
       "term": "dated",
-      "redemptionDay": "2036-05-06",
-      "yieldNote": "HTT trades at a discount to HEX that closes as its redemption day approaches, redeeming 1:1 for HEX at maturity.",
-      "windDown": "The vault cannot call Actuator's redemption. Holders must exit in two steps: redeem HEXstr at the vault for HTT, then redeem HTT at Actuator Finance for HEX, at or before the redemption day.",
+      "maturity": {
+        "date": "2036-05-06",
+        "source": "Actuator date shown on the market desk. Not vault storage. No maturity() function."
+      },
+      "windDown": "Redeem HEXstr for HTT, then redeem HTT at Actuator for HEX. The vault cannot call Actuator.",
       "pools": [
         {
           "pair": "HEXstr-6000/HEX",
           "dex": "PulseX v2",
-          "address": "0x09a48d046aF49b4D5152838C2623769Ef1787a18"
+          "address": "0x09a48d046aF49b4D5152838C2623769Ef1787a18",
+          "role": "Vault-token pool"
         }
       ],
-      "sourcify": "https://repo.sourcify.dev/369/0x369206C9566F9982Ba14fd86897D512b6dBC6602",
-      "explorer": "https://otter.pulsechain.com/address/0x369206C9566F9982Ba14fd86897D512b6dBC6602"
+      "backingAssetPool": {
+        "pair": "HTT-6000/HEX",
+        "dex": "PulseX v2",
+        "address": "0xc6CAc89798aAdBc2983beAF55cB98Ce0c07af42d",
+        "role": "Prices the backing HTT in HEX. Not a second vault-token premium."
+      },
+      "sourcify": "https://repo.sourcify.dev/369/0x369206C9566F9982Ba14fd86897D512b6dBC6602"
     },
     {
       "symbol": "HEXstr-5000",
-      "name": "HEXStrategy-5000",
+      "kind": "core",
+      "isLaunchVault": false,
       "address": "0xa82d3b19929f412A72B5711d97b302d40B14f4F4",
       "decimals": 8,
       "asset": {
         "symbol": "HTT-5000",
-        "name": "Actuator Finance staked-HEX claim, day 5000",
         "address": "0xE2D03779147A32064511dd2b9D37F66f3EeFAd7C",
         "decimals": 8
       },
       "term": "dated",
-      "redemptionDay": "2033-08-10",
-      "yieldNote": "HTT trades at a discount to HEX that closes as its redemption day approaches, redeeming 1:1 for HEX at maturity.",
-      "windDown": "The vault cannot call Actuator's redemption. Holders must exit in two steps: redeem HEXstr at the vault for HTT, then redeem HTT at Actuator Finance for HEX, at or before the redemption day.",
+      "maturity": {
+        "date": "2033-08-10",
+        "source": "Actuator date shown on the market desk. Not vault storage. No maturity() function."
+      },
+      "windDown": "Redeem HEXstr for HTT, then redeem HTT at Actuator for HEX. The vault cannot call Actuator.",
       "pools": [
         {
           "pair": "HEXstr-5000/HEX",
           "dex": "PulseX v2",
-          "address": "0xb34f93d1AaAA5E28bcf2379fdF1852773F469701"
+          "address": "0xb34f93d1AaAA5E28bcf2379fdF1852773F469701",
+          "role": "Vault-token pool"
         }
       ],
-      "sourcify": "https://repo.sourcify.dev/369/0xa82d3b19929f412A72B5711d97b302d40B14f4F4",
-      "explorer": "https://otter.pulsechain.com/address/0xa82d3b19929f412A72B5711d97b302d40B14f4F4"
+      "backingAssetPool": {
+        "pair": "HTT-5000/HEX",
+        "dex": "PulseX v2",
+        "address": "0x290e43f97a071f7513f55B534b2C196b9eFa364C",
+        "role": "Prices the backing HTT in HEX. Not a second vault-token premium."
+      },
+      "sourcify": "https://repo.sourcify.dev/369/0xa82d3b19929f412A72B5711d97b302d40B14f4F4"
     },
     {
       "symbol": "HEXstr-4000",
-      "name": "HEXStrategy-4000",
+      "kind": "core",
+      "isLaunchVault": false,
       "address": "0x26E1C36F8fcd4fFD6cBf047E91be8E5E8829f61e",
       "decimals": 8,
       "asset": {
         "symbol": "HTT-4000",
-        "name": "Actuator Finance staked-HEX claim, day 4000",
         "address": "0x3Cf372aA6aAa46eDc4B8da86294deC0DDecED632",
         "decimals": 8
       },
       "term": "dated",
-      "redemptionDay": "2030-11-14",
-      "yieldNote": "HTT trades at a discount to HEX that closes as its redemption day approaches, redeeming 1:1 for HEX at maturity.",
-      "windDown": "The vault cannot call Actuator's redemption. Holders must exit in two steps: redeem HEXstr at the vault for HTT, then redeem HTT at Actuator Finance for HEX, at or before the redemption day.",
+      "maturity": {
+        "date": "2030-11-14",
+        "source": "Actuator date shown on the market desk. Not vault storage. No maturity() function."
+      },
+      "windDown": "Redeem HEXstr for HTT, then redeem HTT at Actuator for HEX. The vault cannot call Actuator.",
       "pools": [
         {
           "pair": "HEXstr-4000/HEX",
           "dex": "PulseX v2",
-          "address": "0xD1cF5CA96788674C478Ba6C94f5297346910FFc4"
+          "address": "0xD1cF5CA96788674C478Ba6C94f5297346910FFc4",
+          "role": "Vault-token pool"
         }
       ],
-      "sourcify": "https://repo.sourcify.dev/369/0x26E1C36F8fcd4fFD6cBf047E91be8E5E8829f61e",
-      "explorer": "https://otter.pulsechain.com/address/0x26E1C36F8fcd4fFD6cBf047E91be8E5E8829f61e"
+      "backingAssetPool": {
+        "pair": "HTT-4000/HEX",
+        "dex": "PulseX v2",
+        "address": "0x9165909161c95B4bfE0BC4d46d3DA6E5b2d2FB69",
+        "role": "Prices the backing HTT in HEX. Not a second vault-token premium."
+      },
+      "sourcify": "https://repo.sourcify.dev/369/0x26E1C36F8fcd4fFD6cBf047E91be8E5E8829f61e"
     },
     {
       "symbol": "HEXstr-3000",
-      "name": "HEXStrategy-3000",
+      "kind": "core",
+      "isLaunchVault": false,
       "address": "0xd992b901474715accB07C5e933EDb8992715b4c2",
       "decimals": 8,
       "asset": {
         "symbol": "HTT-3000",
-        "name": "Actuator Finance staked-HEX claim, day 3000",
         "address": "0xE9E1340A2b31d5D2a2dB28FB854a794E106b430a",
         "decimals": 8
       },
       "term": "dated",
-      "redemptionDay": "2028-02-18",
-      "yieldNote": "HTT trades at a discount to HEX that closes as its redemption day approaches, redeeming 1:1 for HEX at maturity.",
-      "windDown": "The vault cannot call Actuator's redemption. Holders must exit in two steps: redeem HEXstr at the vault for HTT, then redeem HTT at Actuator Finance for HEX, at or before the redemption day.",
+      "maturity": {
+        "date": "2028-02-18",
+        "source": "Actuator date shown on the market desk. Not vault storage. No maturity() function."
+      },
+      "windDown": "Redeem HEXstr for HTT, then redeem HTT at Actuator for HEX. The vault cannot call Actuator.",
       "pools": [
         {
           "pair": "HEXstr-3000/HEX",
           "dex": "PulseX v2",
-          "address": "0x8126066BdFe45d456735f7193F022B448BE67776"
+          "address": "0x8126066BdFe45d456735f7193F022B448BE67776",
+          "role": "Vault-token pool"
         }
       ],
-      "sourcify": "https://repo.sourcify.dev/369/0xd992b901474715accB07C5e933EDb8992715b4c2",
-      "explorer": "https://otter.pulsechain.com/address/0xd992b901474715accB07C5e933EDb8992715b4c2"
+      "backingAssetPool": {
+        "pair": "HTT-3000/HEX",
+        "dex": "PulseX v2",
+        "address": "0xBB4D05C1663f079C1d9e0A4A6eE5a877CFE34F72",
+        "role": "Prices the backing HTT in HEX. Not a second vault-token premium."
+      },
+      "sourcify": "https://repo.sourcify.dev/369/0xd992b901474715accB07C5e933EDb8992715b4c2"
     }
   ],
   "protocolFeeAddress": "0x3E5a5764EBd24d8142638366d4c5674D86c2EC64",
+  "launcher": {
+    "factory": "0x1F3Ef0bf7fE0c6bEBD0ba1503734F87014dBa5e5",
+    "sourcify": "https://repo.sourcify.dev/369/0x1F3Ef0bf7fE0c6bEBD0ba1503734F87014dBa5e5",
+    "index": "Call vaultCount(), then vaultsRange(start, count). vaultAt(i) and vaults(i) return one address. Avoid allVaults() once the list is long. Listen for VaultCreated. Then isLaunchVault and infoOf on each address.",
+    "abi": [
+      "function vaultCount() view returns (uint256)",
+      "function vaultAt(uint256) view returns (address)",
+      "function vaults(uint256) view returns (address)",
+      "function vaultsRange(uint256 start, uint256 count) view returns (address[])",
+      "function allVaults() view returns (address[])",
+      "function isLaunchVault(address) view returns (bool)",
+      "function infoOf(address) view returns (address vault, address creator, address asset, string name, string symbol, uint256 initialQuotaBps, uint256 createdAt, uint256 seedAssetIn, uint256 tokensOut)",
+      "function allowedAsset(address) view returns (bool)",
+      "function minSeedAmount(address) view returns (uint256)",
+      "function isNameTaken(string) view returns (bool)",
+      "function isSymbolTaken(string) view returns (bool)",
+      "function createVault(string name, string symbol, address asset, uint256 initialQuotaBps, uint256 seedAssetIn, uint256 minTokensOut) payable returns (address vault, uint256 tokensOut)"
+    ],
+    "infoOfOrder": ["vault", "creator", "asset", "name", "symbol", "initialQuotaBps", "createdAt", "seedAssetIn", "tokensOut"],
+    "createVault": {
+      "value": "Exactly 10000 ether wei. msg.value != LAUNCH_FEE reverts WrongLaunchFee.",
+      "initialQuotaBps": "500 or 1000 only",
+      "approve": "The creator must approve the factory for seedAssetIn of the backing asset before createVault.",
+      "seed": "minSeedAmount(asset) is 10 whole tokens in that asset's decimals."
+    },
+    "allowlist": [
+      { "symbol": "PLSX", "address": "0x95B303987A60C71504D99Aa1b13B4DA07b0790ab", "decimals": 18 },
+      { "symbol": "PLSstr", "address": "0x71ff5C9C9938E39E819246ef939FFb5Fd228922d", "decimals": 18 },
+      { "symbol": "PRVX", "address": "0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11", "decimals": 18 },
+      { "symbol": "WPLS", "address": "0xA1077a294dDE1B09bB078844df40758a5D0f9a27", "decimals": 18 },
+      { "symbol": "INC", "address": "0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d", "decimals": 18 },
+      {
+        "symbol": "pDAI",
+        "role": "backing asset",
+        "address": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+        "decimals": 18,
+        "note": "Allowlisted backing asset only. Not the USD stable. The contract's symbol() string happens to be DAI. Ignore that string. Price this token as pDAI. Never use it for USD."
+      }
+    ]
+  },
+  "lpFeeShare": {
+    "address": "0x58BECDc2a20A32567f6e669f690fE8ff9b995411",
+    "sourcify": "https://repo.sourcify.dev/369/0x58BECDc2a20A32567f6e669f690fE8ff9b995411",
+    "note": "Ownerless drip. Not a farm. LP stays in the wallet. No emission and no promised APR. Rewards exist only if a funder has deposited. A zero pending balance is normal.",
+    "rewardToken": "The vault backing asset. Core pairs pay vPLS or the matching HTT. Launched pairs pay that vault's asset.",
+    "funders": "Core pairs: protocol fee address only. Launched pairs: the vault creator, after register(), and the protocol fee address. Neither funder can claim.",
+    "qualifySeconds": 2592000,
+    "boost": "1x at 30 days, then +1x each 30 days, cap 6x at 180 days. Any decrease in LP balance resets the clock and forfeits unclaimed rewards.",
+    "minLpBps": 1,
+    "register": "register(vault, pair) requires isLaunchVault, msg.sender == creator, and a PulseX v2 pair. Core pairs are already enrolled.",
+    "reads": [
+      "function isPool(address) view returns (bool)",
+      "function position(address pair, address account) view returns (uint256 lpLive, uint256 lpStored, uint256 joinedAt, uint256 eligibleAt, bool qualified, uint256 pending, uint256 qualifyLeft)",
+      "function earned(address pair, address account) view returns (uint256)",
+      "function boostOf(address pair, address account) view returns (uint256)"
+    ],
+    "corePairs": [
+      "0x38b204b4f9c38a5115186b1E20d55884a97ed1de",
+      "0x8126066BdFe45d456735f7193F022B448BE67776",
+      "0xD1cF5CA96788674C478Ba6C94f5297346910FFc4",
+      "0xb34f93d1AaAA5E28bcf2379fdF1852773F469701",
+      "0x09a48d046aF49b4D5152838C2623769Ef1787a18",
+      "0x6F5a5387dd6aDAf5fE5A0340144162785fd6AC7F"
+    ]
+  },
+  "references": {
+    "hex": {
+      "address": "0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39",
+      "decimals": 8
+    },
+    "wpls": {
+      "address": "0xA1077a294dDE1B09bB078844df40758a5D0f9a27",
+      "decimals": 18,
+      "note": "Wrapped PLS. The site often labels a WPLS quote as PLS."
+    },
+    "vouch": {
+      "note": "Not a PulseStrategy contract. PLSstr is backed by vPLS.",
+      "vpls": "0x79BB3A0Ee435f957ce4f54eE8c3CFADc7278da0C",
+      "getRate": "function getRate() view returns (uint256) — WAD, PLS per 1 vPLS",
+      "vplsWplsPair": "0x46814b3f18D90625B6E166bC2917Bb64a635d797"
+    },
+    "usdDai": {
+      "symbol": "DAI",
+      "role": "USD stable",
+      "note": "USD price only. Not a vault backing asset. Not pDAI.",
+      "token": "0xefD766cCb38EaF1dfd701853BFCe31359239F305",
+      "decimals": 18,
+      "wplsPair": "0xE56043671df55dE5CDf8459710433C10324DE0aE"
+    }
+  },
   "guarantees": [
-    "No owner, no admin role, no pause switch, no upgrade path, no proxy.",
+    "No owner, no admin role, no pause switch, no upgrade path, no proxy on the vaults or the factory.",
     "Backing per token never decreases from any operation of these contracts.",
     "100% of supply is minted publicly through one formula. No pre-mine, no team allocation, no emissions.",
-    "No transfer tax. Vault tokens are plain, fully composable ERC20s.",
+    "No transfer tax.",
     "Redemption is always available."
   ],
   "risks": [
-    "These contracts have not received a paid third-party audit. They are immutable, so a bug would be permanent.",
-    "The floor is denominated in the vault's asset (vPLS or HTT), not in USD. Asset price risk is carried in full by the holder.",
-    "Each vault inherits the risk of its backing asset's issuing protocol: Vouch for PLSstr; HEX, Hedron/HSIs and Actuator Finance for HEXstr.",
-    "A round trip costs approximately 5% (4.5% mint premium plus 0.5% redemption fee).",
-    "HEXstr vaults are dated. Holders must complete a two-step exit at or before the redemption day.",
-    "Market price is not guaranteed and may sit at the floor indefinitely."
+    "No paid third-party audit. Immutable, so a bug is permanent.",
+    "The floor is in the vault asset, not USD.",
+    "PLSstr inherits Vouch. HEXstr inherits HEX, Hedron HSIs, and Actuator.",
+    "A round trip costs about 5% before gas and slippage.",
+    "HEXstr holders must exit in two steps at maturity.",
+    "Market price may sit at the floor indefinitely.",
+    "LP rewards can be zero. Deposit is optional."
   ],
-  "manifest": "https://pulsestrategy369.com/pulsestrategy.json",
-  "errors": [
-    {
-      "signature": "MintQuotaExceeded(uint256 remainingQuota)",
-      "meaning": "The epoch mint quota is exhausted or your amount exceeds what remains. The error returns the remaining quota in vault-token units. Wait for timeToNextEpoch() or buy on the DEX instead."
-    },
-    {
-      "signature": "SlippageExceeded()",
-      "meaning": "Output fell below your minTokensOut / minAssetOut guard, usually because backing moved between simulation and inclusion. Re-simulate with previewMint/previewRedeem and retry."
-    },
-    {
-      "signature": "ZeroTokensOut()",
-      "meaning": "The deposit was too small to mint a single unit at current backing. Increase the amount."
-    },
-    {
-      "signature": "ZeroAmount()",
-      "meaning": "Input was zero, or the asset transfer delivered nothing."
-    },
-    {
-      "signature": "InsufficientBalance()",
-      "meaning": "You hold fewer vault tokens than you tried to redeem."
-    }
-  ],
-  "events": [
-    {
-      "signature": "Minted(address indexed minter, uint256 assetIn, uint256 tokensOut, uint256 newBackingPerToken)",
-      "use": "Detect mints and the resulting backing. newBackingPerToken is WAD-scaled."
-    },
-    {
-      "signature": "Redeemed(address indexed redeemer, uint256 tokensBurned, uint256 assetOut, uint256 assetFeeRetained, uint256 newBackingPerToken)",
-      "use": "Detect exits and the fee left behind."
-    },
-    {
-      "signature": "EpochRolled(uint256 indexed epoch, uint256 quota)",
-      "use": "Fires on the first mint of a new epoch, carrying that epoch's quota. The most contested moment of the week."
-    },
-    {
-      "signature": "ProtocolFeePaid(address indexed recipient, uint256 amount)",
-      "use": "Audit the protocol fee. Cumulative total is also readable via totalProtocolFees()."
-    }
-  ],
-  "workedExample": {
-    "description": "Genesis mint into an empty vault, to validate an implementation.",
-    "assetIn": 104.5,
-    "tokensOut": 100.0,
-    "protocolFeeOut": 0.5,
-    "vaultBalanceAfter": 104.0,
-    "backingPerTokenAfter": 1.04,
-    "note": "tokensOut = assetIn * 10000 / 10450. protocolFee = assetIn * 50 / 10450. The vault retains a net 4.0%, so every mint raises backing."
-  },
   "dex": {
     "name": "PulseX",
     "pairType": "UniswapV2-compatible",
     "wpls": "0xA1077a294dDE1B09bB078844df40758a5D0f9a27",
     "factories": [
-      {
-        "name": "PulseX v1",
-        "address": "0x1715a3E4A142d8b698131108995174F37aEBA10D"
-      },
-      {
-        "name": "PulseX v2",
-        "address": "0x29eA7545DEf87022BAdc76323F373EA1e707C523"
-      }
+      { "name": "PulseX v2", "address": "0x29eA7545DEf87022BAdc76323F373EA1e707C523", "router": "0x165C3410fC91EF562C50559f7d2289fEbed552d9" }
     ],
     "router": "0x165C3410fC91EF562C50559f7d2289fEbed552d9",
-    "note": "All PulseStrategy pools listed below are PulseX v2 pairs. Pair reserves are readable via getReserves(); price = reserve_asset / reserve_vaultToken, adjusted for each token's decimals. Swaps route through PulseXRouter02 at a 0.29% fee. Always verify addresses on-chain before submitting transactions.",
-    "routerName": "PulseXRouter02",
     "swapFeeBps": 29,
-    "swapFee": "0.29% per swap (0.0029)"
+    "getPair": "function getPair(address, address) view returns (address)",
+    "reserves": "function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)",
+    "poolRule": "PulseX v2 only. getPair on 0x29eA7545DEf87022BAdc76323F373EA1e707C523. Zero address means no pool. If several v2 quotes exist, the deepest wins. Do not query PulseX v1."
   },
-  "opportunityProfile": {
-    "summary": "The arbitrage here is contract-enforced and recurring rather than discretionary and one-off. Both sides of the band are quoted by immutable code with no counterparty, no operator, and no ability to withdraw quotes.",
-    "properties": [
-      {
-        "property": "Recurring on a fixed schedule",
-        "detail": "Epochs roll every 604800 seconds on a global clock (block.timestamp / 604800). All six vaults roll simultaneously. Epoch open is the moment the ceiling reopens and is the most contested window each week \u2014 it is predictable weeks in advance, with no oracle or operator involved."
-      },
-      {
-        "property": "The quote cannot be withdrawn",
-        "detail": "Unlike a market maker's bid, mint() and redeem() are the contract itself. There is no operator who can cancel, widen, or pause the quote. redeem() in particular is never quota-limited, paused, or gated, so the floor leg is always executable."
-      },
-      {
-        "property": "Immutable counterparty",
-        "detail": "No owner, no admin, no upgrade path, no proxy. A strategy written against these contracts does not need re-auditing after an upgrade, because upgrades are impossible. Contract risk is fixed at integration time rather than ongoing."
-      },
-      {
-        "property": "Deterministic simulation",
-        "detail": "previewMint() and previewRedeem() are pure view functions over on-chain state. Expected output can be computed exactly in the same block as execution, with slippage guards on both write functions."
-      },
-      {
-        "property": "Threshold moves in one direction",
-        "detail": "backingPerToken() can only increase. The profitable-entry threshold therefore drifts upward monotonically over time; it never resets downward. Strategies can cache the direction of drift."
-      },
-      {
-        "property": "One integration covers six markets",
-        "detail": "All six vaults share one codebase and one ABI, differing only in backing asset and decimals (8 for HEXstr, 18 for PLSstr). A single integration yields six independent band positions across two underlying assets (staked PLS and staked HEX at five maturities)."
-      },
-      {
-        "property": "No token-level friction",
-        "detail": "Vault tokens are plain ERC20s with no transfer tax, no rebasing and no blocklist, so transfers cost exactly what they appear to cost and pool accounting is unsurprising."
-      },
-      {
-        "property": "Two-sided flow",
-        "detail": "Because the vault pays on both crossings, activity in either direction feeds it. Volatility in the backing asset produces band crossings without requiring directional conviction."
-      }
-    ],
-    "systemEffect": "Each crossing transfers value from whoever traded outside the band to the vault, which raises backing for all holders. Arbitrageurs capture the spread, liquidity providers capture the 0.29% swap fee on the volume this generates, and holders capture the retained premium. None of these participants needs another to lose: the cost is borne by whoever chose immediacy over the band.",
-    "sizingNote": "Both legs move the pool price. Size against pool reserves rather than the nominal spread, and confirm profitability after the 0.29% swap fee and gas before committing."
-  }
+  "errors": [
+    { "signature": "MintQuotaExceeded(uint256 remainingQuota)", "meaning": "Epoch mint quota exhausted. Wait for timeToNextEpoch or buy on the DEX." },
+    { "signature": "SlippageExceeded()", "meaning": "Output fell below the guard. Re-simulate and retry." },
+    { "signature": "ZeroTokensOut()", "meaning": "Deposit too small to mint one unit." },
+    { "signature": "ZeroAmount()", "meaning": "Input was zero or the transfer delivered nothing." },
+    { "signature": "InsufficientBalance()", "meaning": "Redeem amount exceeds balance." },
+    { "signature": "WrongLaunchFee()", "meaning": "createVault was not sent exactly 10000 PLS." },
+    { "signature": "SeedTooSmall()", "meaning": "Bootstrap mint was under 10 whole tokens of the backing asset." },
+    { "signature": "NameTaken()", "meaning": "Factory name already used, ASCII case-insensitive." },
+    { "signature": "SymbolTaken()", "meaning": "Factory symbol already used, ASCII case-insensitive." },
+    { "signature": "AssetNotAllowed()", "meaning": "Backing asset is not on the six-asset allowlist." },
+    { "signature": "BadQuota()", "meaning": "initialQuotaBps was not 500 or 1000." },
+    { "signature": "BadName()", "meaning": "Name or symbol empty, or longer than 32 / 12 chars." }
+  ],
+  "events": [
+    { "signature": "Minted(address indexed minter, uint256 assetIn, uint256 tokensOut, uint256 newBackingPerToken)", "use": "Backing changed on entry. newBackingPerToken is WAD-scaled. Same on core and launch vaults." },
+    { "signature": "Redeemed(address indexed redeemer, uint256 tokensBurned, uint256 assetOut, uint256 assetFeeRetained, uint256 newBackingPerToken)", "use": "Backing changed on exit. Same on core and launch vaults." },
+    { "signature": "EpochRolled(uint256 indexed epoch, uint256 quota)", "use": "Core vaults only (PLSstr and HEXstr). First mint of a new epoch." },
+    { "signature": "EpochRolled(uint256 indexed epoch, uint256 quotaBps, uint256 quota)", "use": "Launch vaults only. Do not decode a launch log with the core signature." },
+    { "signature": "VaultCreated(address indexed vault, address indexed creator, address indexed asset, string name, string symbol, uint256 initialQuotaBps, uint256 seedAssetIn, uint256 tokensOut, uint256 index)", "use": "Factory. index is the position for vaultAt." }
+  ]
 }
