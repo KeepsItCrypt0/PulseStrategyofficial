@@ -54,7 +54,10 @@ header{display:flex;justify-content:space-between;align-items:center;gap:12px;
   border-radius:11px;border:1px solid var(--line);background:var(--panel);
   color:var(--mut);text-decoration:none;display:inline-flex;align-items:center;white-space:nowrap}
 .navtab:hover{border-color:var(--pulse);color:var(--text);text-decoration:none}
-.navtab.here{color:var(--text);border-color:var(--pulse);box-shadow:0 0 0 1px var(--pulse) inset;cursor:default}
+.navtab.suiteglow{color:var(--text);border-color:rgba(168,210,244,.55);box-shadow:0 0 0 1px rgba(176,214,246,.3),0 0 12px rgba(154,200,238,.22);animation:suiteglow 3.6s ease-in-out infinite}
+.navtab.suiteglow:hover{color:#fff;border-color:rgba(186,220,250,.7)}
+@keyframes suiteglow{0%,100%{box-shadow:0 0 0 1px rgba(170,210,242,.26),0 0 10px rgba(150,198,236,.18)}50%{box-shadow:0 0 0 1px rgba(196,226,255,.52),0 0 16px rgba(164,208,248,.34)}}
+@media(prefers-reduced-motion:reduce){.navtab.suiteglow{animation:none}}
 
 .hero{padding:8px 0 28px;border-bottom:1px solid var(--line);margin-bottom:30px}
 h1{font-family:'Michroma';font-size:clamp(21px,5.2vw,30px);line-height:1.35;letter-spacing:.02em;margin-bottom:14px}
@@ -156,10 +159,10 @@ footer{border-top:1px solid var(--line);margin-top:56px;padding-top:22px;
     </div>
   </div>
   <div class="hdr-right">
-    <a class="navtab" href="https://pulsestrategy369.com">PulseVerify</a>
-    <a class="navtab" href="https://pulsestrategy369.com/vaults">Vaults</a>
-    <a class="navtab" href="https://pulsestrategy369.com/launch">Launcher</a>
-    <span class="navtab here">Whitepaper</span>
+    <a class="navtab" href="https://pulsestrategy369.com" target="_top">PulseVerify</a>
+    <a class="navtab suiteglow" href="https://pulsestrategy369.com/vaults" target="_top">Vaults</a>
+    <a class="navtab suiteglow" href="https://pulsestrategy369.com/launch" target="_top">Launcher</a>
+    <span class="navtab suiteglow here">Whitepaper</span>
   </div>
 </header>
 
@@ -198,6 +201,7 @@ footer{border-top:1px solid var(--line);margin-top:56px;padding-top:22px;
     <li class="part">Part II — User Guide</li>
     <li><a href="#quickstart">Quick start</a></li>
     <li><a href="#dashboard">Reading the dashboard</a></li>
+    <li><a href="#hardest-holder">Hardest Holder ranking</a></li>
     <li><a href="#mint">How to mint</a></li>
     <li><a href="#redeem">How to redeem</a></li>
     <li class="hot"><a href="#launch">How to launch a vault</a></li>
@@ -560,9 +564,48 @@ FLOOR    &#8594;  redeem()  at  backing &times; 0.995   (infinite bid, never lim
 <tr><td><strong>The ratchet rail</strong></td><td>Visual of how far backing has climbed above 1.0. It only moves right.</td></tr>
 <tr><td><strong>Vault holds</strong></td><td>Total assets in the vault right now</td></tr>
 <tr><td><strong>Supply</strong></td><td>Total vault tokens in existence</td></tr>
+<tr><td><strong>PulseX pool</strong></td><td>Live reserves of that vault’s PulseX v2 pair, the dollars in the pool, the PulseX spot price, and how minting (backing + 4.5%) and redeeming (backing − 0.5%) compare with that spot.</td></tr>
+<tr><td><strong>Your hold</strong></td><td>Wallet balance of the vault token and of the backing asset, plus LP, score, and rank. See <a href="#hardest-holder">Hardest Holder ranking</a>.</td></tr>
 <tr><td><strong>Mintable this epoch</strong></td><td>How much room is left before the ceiling closes this week</td></tr>
 <tr><td><strong>Resets in</strong></td><td>Countdown to the next epoch — when the quota refills and the mint race restarts</td></tr>
 </tbody></table></div>
+
+<h2 id="hardest-holder">Hardest Holder ranking</h2>
+<p>The vaults page keeps a public ranking of who has held a vault token, and how. It is a score on top of the same tokens. It does not change minting, redeeming, backing, or the floor. The heading on the vaults page links here. The list is marked <strong>Live</strong> and stays one panel tall — when there are more holders, that panel scrolls.</p>
+
+<h3>The score</h3>
+<p>Each place a wallet holds the token is scored on its own, then added up:</p>
+<blockquote><p><strong>amount × time factor × place multiplier × DCA factor</strong></p></blockquote>
+<ul>
+<li><strong>Amount</strong> is the vault token sitting in that place: the wallet, a launch vault that uses this token as backing, or PulseX LP.</li>
+<li><strong>Time factor</strong> is 2^(days ÷ 91). The weight doubles every quarter (91 days). The clock starts when that bag arrived.</li>
+<li><strong>Place multiplier.</strong> Wallet ×1. A launch vault that holds this token as its backing ×2. PulseX LP ×4.</li>
+<li><strong>DCA factor.</strong> Each extra week you actually added size is +4%, up to +35%. One week of holding is ×1.</li>
+</ul>
+<p>Moving the same bag between your wallet, LP, and a launch vault within 10 minutes does not reset the clock, does not count as a new DCA week, and is not a sale.</p>
+<p>The board takes the top 24 bags by size (wallet ×1 + launcher ×2 + LP ×4), plus the connected wallet if it sits outside that cut. Contracts, the burn addresses, the pair, and the vault itself are skipped. A PulseDomains <span class="mono">.pls</span> name is shown only when the name resolves forward to that same wallet.</p>
+<p><strong>HEXstr cannot launch a vault.</strong> The launcher allowlist does not include HEXstr, so the Launcher ×2 cell is hidden on every HEXstr board and those tokens are not scored as a launch vault. PLSstr can be used as backing, and that bag scores ×2.</p>
+
+<h3>Ranks and badges</h3>
+<p>The badge is the highest rank the score has reached. Paper replaces the badge while a sale penalty is active. The wallet with the highest score who is <em>not</em> Paper wears the Hardest Holder tag. If the score leader just sold, the crown passes to the next holder who did not.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Score</th><th>Rank</th><th>What you see</th></tr></thead>
+<tbody>
+<tr><td>While Paper</td><td>Paper</td><td>Paper badge. No Diamond Hands badge, and this wallet is not the Hardest Holder until Paper clears.</td></tr>
+<tr><td>800</td><td>Copper</td><td>Copper</td></tr>
+<tr><td>5,000</td><td>Iron</td><td>Iron</td></tr>
+<tr><td>40,000</td><td>Granite</td><td>Granite</td></tr>
+<tr><td>120,000</td><td>Steel</td><td>Steel</td></tr>
+<tr><td>1,000,000</td><td>Ruby</td><td>Ruby</td></tr>
+<tr><td>20,000,000</td><td>Diamond Hands</td><td>Diamond Hands badge, unless Paper</td></tr>
+<tr><td>Highest score that is not Paper</td><td>Hardest Holder</td><td>Hardest Holder tag. The row still shows its place number.</td></tr>
+</tbody></table></div>
+
+<h3>Paper hands</h3>
+<p>A sale of more than 1% of the whole stack — wallet, launcher, and LP together — is Paper. Paper lasts 30 days, or it clears after two later buys, whichever comes first.</p>
+<p><strong>Nobody is exempt.</strong> Rank #1 and Diamond Hands used to keep their badge unless they sold more than 90%. That exception is gone. The same sale that papers anyone else papers them too. While Paper, the numeric score is still shown, but the rank badge is Paper, Diamond Hands is hidden, and the wallet cannot be crowned.</p>
+<p>Selling the entire stack removes the wallet from the list. Buying back later starts a new hold, and if that sale was still inside the 30-day window the Paper penalty still applies until two buys have landed or the 30 days end.</p>
+<p>Share your rank on the vaults page draws a card from this same score. The ranking is not a yield, not a claim on the vault, and not a promise that the score will rise.</p>
 
 <h2 id="mint">How to mint</h2>
 <ol>
@@ -666,6 +709,7 @@ FLOOR    &#8594;  redeem()  at  backing &times; 0.995   (infinite bid, never lim
 <p><strong>Why this matters:</strong> if pulsestrategy369.com ever goes down, is censored, or has its DNS hijacked, your local copy still works and cannot be tampered with. The contract has no admin key; now the interface has no mandatory middleman. Verify your copy of either dapp page against the <strong>SHA-256 hash</strong> shown in its footer and cross-checked against the one published on GitHub or <a href="https://x.com/pulsestrategy" target="_blank" rel="noopener">@pulsestrategy</a> — a compromised server can fake the page, but it can't fake a hash you got somewhere else.</p>
 
 <h2 id="faq">FAQ</h2>
+<p><strong>Does selling paper a Diamond Hands wallet, or the #1 holder?</strong><br>Yes. A sale of more than 1% of the stack is Paper for 30 days, or until two later buys, for every wallet. #1 and Diamond Hands are not exempt. While Paper, that wallet is not the Hardest Holder. See <a href="#hardest-holder">Hardest Holder ranking</a>.</p>
 <p><strong>Can the team rug this?</strong><br>There is no mechanism to. No owner, no admin function, no upgrade path, no privileged supply. Read the verified source — that's the point. The one thing the founder gets is the same thing you get: tokens minted through the public formula, plus a disclosed 0.5% protocol fee, publicly counted on-chain.</p>
 <p><strong>Why would backing ever go down?</strong><br>From these contracts, it can't. From the layers below — a Vouch failure, an Actuator failure, a HEX or PulseChain event — it can. That's the honest boundary of the guarantee.</p>
 <p><strong>What if nobody uses it?</strong><br>Then backing grows only from asset yield, and the token trades at its floor. You'd hold roughly what you'd hold anyway, minus your entry cost. That's the downside case: dull, not catastrophic — which is the entire point of the design.</p>
