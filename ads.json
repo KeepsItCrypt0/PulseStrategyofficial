@@ -1,0 +1,29 @@
+{
+  "ads": [
+    {
+      "image": "https://pulsestrategy369.com/ads/pulsestrategy.png",
+      "link": "https://pulsestrategy369.com/vaults",
+      "label": "PulseStrategy"
+    },
+    {
+      "image": "https://pulsestrategy369.com/ads/launcher.png",
+      "link": "https://pulsestrategy369.com/launch",
+      "label": "PulseStrategy Launcher"
+    },
+    {
+      "image": "https://pulsestrategy369.com/ads/vouch.png",
+      "link": "https://app.vouch.run/PLS/",
+      "label": "Vouch"
+    },
+    {
+      "image": "https://pulsestrategy369.com/ads/actuator.png",
+      "link": "https://www.actuator.finance/",
+      "label": "Actuator"
+    },
+    {
+      "image": "https://pulsestrategy369.com/ads/openslot.png",
+      "link": "https://x.com/keepsitcrypt0",
+      "label": "Open slot · DM @keepsitcrypt0"
+    }
+  ]
+}
