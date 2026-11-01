@@ -449,7 +449,7 @@ rel="noopener">Github</a> and inspect the code or download from github.</div>
   Free tool from <a href="https://pulsestrategy369.com">PulseStrategy</a> · <a href="https://x.com/pulsestrategy" target="_blank" rel="noopener">@pulsestrategy</a> · the floor only rises · <span id="buildTag" style="font-family:var(--mono)"></span>
 </footer>
 </div>
-<script>(function(){var s=document.createElement('script');s.defer=true;s.src=(/(vaults|market|launch|explorer)\//.test(location.pathname)?'../ps.js':'ps.js');document.head.appendChild(s);})();</script>
+<script>(function(){var s=document.createElement('script');s.defer=true;s.onload=function(){if(window.__psReady)window.__psReady();};s.src=(/(vaults|market|launch|explorer)\//.test(location.pathname)?'../ps.js':'ps.js');document.head.appendChild(s);})();</script>
 <script>
 "use strict";
 var BUILD = 'v88 · 2026-11-01';
@@ -2549,15 +2549,29 @@ async function loadRecentTxs(addr){
 }
 
 /* ================= search ================= */
+/* .pls names: PulseChain Name Service registry (ENS-style). Uses ps.js when present; if ps.js hasn't loaded
+   (or a downloaded copy has no ps.js) it falls back to ethers.namehash + registry.resolver() + resolver.addr(). */
+const PNS_REGISTRY = '0xbd5133993FCDED5945c5539D9f032261F0d13170';
+async function resolvePls(name){
+  const n = String(name).trim().toLowerCase();
+  if(window.PS){ psInit(); try{ const a = await PS.toAddress(n); if(a) return a; }catch(e){} }
+  const ethers = await loadEthers();
+  const node = ethers.namehash(n).slice(2);
+  const res = wordAddr(retWord(await call(PNS_REGISTRY, '0x0178b8bf' + node)) || '0x'+'0'.repeat(64));
+  if(!isAddr(res) || /^0x0{40}$/.test(res)) return '';
+  const a = wordAddr(retWord(await call(res, '0x3b3b57de' + node)) || '0x'+'0'.repeat(64));
+  return isAddr(a) && !/^0x0{40}$/.test(a) ? a : '';
+}
 function runSearch(){
   const q = $('q').value.trim();
   if(!q) return;
   if(/^0x[0-9a-fA-F]{64}$/.test(q)) return loadTx(q);
   if(/^0x[0-9a-fA-F]{40}$/.test(q)) return loadAddress(q);
   if(/^[\d,]+$/.test(q)) return loadBlock(parseInt(q.replace(/,/g,''),10));
-  if(window.PS && PS.looksLikeName(q)){
+  if(/^[a-z0-9-]+(\.[a-z0-9-]+)*\.pls$/i.test(q)){
     showLoading('Name');
-    PS.toAddress(q).then(a => a ? loadAddress(a) : showErr('No PulseChain address for that .pls name.'));
+    resolvePls(q).then(a => a ? loadAddress(a) : showErr('No PulseChain address for that .pls name.'))
+      .catch(e => showErr('Name lookup failed: ' + e.message));
     return;
   }
   showErr('Unrecognized format. Paste a .pls name, a 42-character address, a 66-character tx hash, or a block number.');
@@ -6069,7 +6083,10 @@ try{
 }catch(e){}
 
 /* explicit globals for inline handlers (defensive for strict environments) */
-if(window.PS){
+/* ps.js now loads deferred, so it can arrive after this script: hook it up whenever it lands. */
+let _psInited = false;
+function psInit(){
+  if(_psInited || !window.PS) return; _psInited = true;
   PS.setCaller((to, data) => call(to, data));
   PS.on(() => { if(walletAddr) paintWalletBtn(); });
   PS.boot({
@@ -6082,6 +6099,7 @@ if(window.PS){
     wcInit: () => ensureWc()
   });
 }
+if(window.PS) psInit(); else window.__psReady = psInit;
 Object.assign(window,{$,rpc,renderEvents,renderApprovals,checkOneApproval,revokeApproval,loadBlock,loadTx,loadAddress,routeFromUrl,loadRecentTxs,openTab,showTools,addChain,connectWallet,connectInjected,connectWC,disconnectWallet,showSourcifyVerdict,inspectBytecode,useDiscoveredAbi,autoAbi,shareLink,fillSourcifyBadge,sourcifyStatus,renderHoldings,discoverTokens,refreshPls,refreshHex,watchTx,signMsg,verifyMsg,loadVaultStats,
   tokBalance,decodeCalldata,openDecoder,execFn,renderFns,runSafety,conv,ERC20_ABI,renderPortfolio,pfShare,pfIcs});
 </script>
