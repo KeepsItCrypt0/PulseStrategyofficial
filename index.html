@@ -255,16 +255,15 @@ details summary{outline:none}
 .bridgerow b{color:var(--text);font-weight:500}
 .adslot{margin-top:14px;position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#0b0b10}
 .adslot a.adpic{display:block;position:relative;text-decoration:none;color:inherit}
-.adslot img{display:block;width:100%;height:132px;object-fit:cover;object-position:center;background:#0b0b10;transition:opacity .7s ease}
+.adslot img{display:block;width:100%;height:112px;object-fit:cover;object-position:center;background:#0b0b10;transition:opacity .7s ease}
 .adslot.fade img,.adslot.fade .psbar{opacity:0}
 .adslot .psbar{margin-top:0;transition:opacity .7s ease}
 .adslot .psbar .admeta{margin-left:auto}
 .adslot.textmode{margin-top:14px;border:0;background:transparent;overflow:visible;border-radius:0}
 .adslot.textmode .adpic{display:none}
 .adslot:not(.textmode) #adText{display:none}
-.adtag{position:absolute;top:8px;right:8px;font-family:var(--disp);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#0b0b10;background:rgba(247,248,251,.92);border:1px solid rgba(11,11,16,.16);border-radius:99px;padding:4px 8px}
 .adlabel{position:absolute;right:8px;bottom:8px;font-size:11px;color:#f7f8fb;background:rgba(11,11,16,.62);border-radius:99px;padding:4px 8px;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media(max-width:700px){.adslot img{height:108px}}
+@media(max-width:700px){.adslot img{height:92px}}
 @media(prefers-reduced-motion:reduce){.adslot img,.adslot .psbar{transition:none}.adslot.fade img,.adslot.fade .psbar{opacity:1}}
 .whale-list{max-height:420px;overflow:auto;margin-top:8px}
 .whale-row{padding:8px 0;border-bottom:1px solid var(--line)}
@@ -358,7 +357,6 @@ footer a.vaultlink{color:var(--teal);font-weight:600}
 <div class="adslot textmode" id="adslot">
   <a id="adLink" class="adpic" href="https://pulsestrategy369.com/vaults" target="_blank" rel="noopener">
     <img id="adImg" alt="PulseStrategy" width="1600" height="360">
-    <span class="adtag">Sponsored</span>
     <span class="adlabel" id="adLabel">PulseStrategy</span>
   </a>
   <div class="psbar" id="adText">
@@ -449,7 +447,7 @@ rel="noopener">Github</a> and inspect the code or download from github.</div>
 <script>document.write('<script src="' + (/(vaults|market|launch|explorer)\//.test(location.pathname) ? '../ps.js' : 'ps.js') + '"><\/script>');</script>
 <script>
 "use strict";
-var BUILD = 'v80 · 2026-10-31';
+var BUILD = 'v84 · 2026-10-31';
 var VAULTS_URL = 'https://pulsestrategy369.com/vaults'; /* ★ EDIT HERE: the one place that controls every 'Vaults' link on this page */
 var LAUNCH_URL = 'https://pulsestrategy369.com/launch'; /* ★ EDIT HERE: PulseStrategy Launcher */
 var WHITEPAPER_URL = 'https://pulsestrategy369.com/whitepaper';
@@ -2989,6 +2987,16 @@ const HOUSE_IMAGES = [
   {image:'launcher.png', link:LAUNCH_URL, label:'PulseStrategy Launcher'}
 ];
 let adList = HOUSE_TEXT.slice(), adIdx = 0, adTimer = 0;
+function adKind(a){
+  const house = adHouse(a);
+  if(house) return house;
+  const blob = (String((a&&a.image)||'')+' '+String((a&&a.link)||'')+' '+String((a&&a.label)||'')).toLowerCase();
+  if(blob.includes('vouch')) return 'vouch';
+  if(blob.includes('actuator')) return 'actuator';
+  if(blob.includes('pulsex')) return 'pulsex';
+  if(blob.includes('openslot') || blob.includes('keepsitcrypt') || blob.includes('gmail') || blob.includes('mailto:') || blob.includes('open slot') || blob.includes('this space') || blob.includes('advertise')) return 'open';
+  return '';
+}
 function adHouse(a){
   const img = String((a && a.image) || '').toLowerCase();
   const link = String((a && a.link) || '').toLowerCase().replace(/\/$/, '');
@@ -2997,24 +3005,91 @@ function adHouse(a){
   if(img.includes('pulsestrategy.png') || link==='https://pulsestrategy369.com' || link===String(VAULTS_URL||'').toLowerCase().replace(/\/$/,'')) return 'vaults';
   return '';
 }
-function adImage(url){
-  if(!url) return '';
-  if(/^https?:/i.test(url) && !/pulsestrategy369\.com\/ads\//i.test(url)) return url;
-  const name = String(url).split('/').pop().split('?')[0];
+const AD_GH_JS = 'https://raw.githubusercontent.com/PulseStrategy369/PulseStrategy/main/ads.js';
+const AD_GH_JSON = 'https://raw.githubusercontent.com/PulseStrategy369/PulseStrategy/main/ads.json';
+const AD_GH_BASE = 'https://raw.githubusercontent.com/PulseStrategy369/PulseStrategy/main/ads/';
+const AD_SITE_JSON = 'https://pulsestrategy369.com/ads.json';
+const AD_SITE_BASE = 'https://pulsestrategy369.com/ads/';
+const LOCAL_ADS = [
+  {image:'pulsestrategy.png', link:VAULTS_URL, label:'PulseStrategy'},
+  {image:'vouch.png', link:'https://app.vouch.run/PLS/', label:'Vouch'},
+  {image:'actuator.png', link:'https://www.actuator.finance/', label:'Actuator'},
+  {image:'pulsex.png', link:'https://pulsex.com/', label:'PulseX'},
+  {image:'launcher.png', link:LAUNCH_URL, label:'PulseStrategy Launcher'},
+  {image:'openslot.png', link:'mailto:pulsestrategy369@gmail.com', label:'Advertise'}
+];
+let adRev = '';
+let adGithubDown = false;
+function adName(url){
+  return String(url||'').split('/').pop().split('?')[0];
+}
+function adLocalSrc(name){
+  if(!name) return '';
   if(location.protocol==='file:') return 'ads/'+name;
-  if(location.hostname==='pulsestrategy369.com' || location.hostname==='www.pulsestrategy369.com')
-    return 'https://pulsestrategy369.com/ads/'+name;
-  return '/ads/'+name;
+  if(location.hostname==='pulsestrategy369.com' || location.hostname==='www.pulsestrategy369.com') return '/ads/'+name;
+  if(/\/explorer\/?$/.test(location.pathname) || location.pathname.indexOf('/explorer/')===0) return '/ads/'+name;
+  return 'ads/'+name;
+}
+function adCandidates(raw){
+  const name = adName(raw && raw.image);
+  const out = [];
+  const push = u => { if(u && out.indexOf(u)<0) out.push(u); };
+  if(!adGithubDown && name) push(AD_GH_BASE+name+'?t='+adRev);
+  push(adLocalSrc(name)+'?t='+adRev);
+  if(name) push(AD_SITE_BASE+name+'?t='+adRev);
+  return out;
 }
 function adProbe(src){
   return new Promise(resolve=>{
+    if(!src){ resolve(false); return; }
     const img = new Image();
     const done = ok => { clearTimeout(t); resolve(ok); };
-    const t = setTimeout(()=>done(false), 8000);
+    const t = setTimeout(()=>done(false), 4000);
     img.onload = ()=>done(true);
     img.onerror = ()=>done(false);
     img.src = src;
   });
+}
+async function adFirst(raw){
+  const list = adCandidates(raw);
+  for(const src of list){
+    if(adGithubDown && src.indexOf('githubusercontent.com')>=0) continue;
+    if(await adProbe(src)) return src;
+    if(src.indexOf('githubusercontent.com')>=0) adGithubDown = true;
+  }
+  return '';
+}
+function loadRemoteAds(){
+  return new Promise(resolve=>{
+    const s = document.createElement('script');
+    let done = false;
+    const finish = ok => {
+      if(done) return;
+      done = true;
+      const pack = window.PS_ADS;
+      const list = pack && (Array.isArray(pack) ? pack : pack.ads);
+      if(ok && list && list.length){
+        if(pack.rev) adRev = String(pack.rev);
+        resolve({list: list, from:'github'});
+      } else resolve(null);
+    };
+    const t = setTimeout(()=>{ adGithubDown = true; finish(false); }, 6000);
+    s.onload = ()=>{ clearTimeout(t); finish(true); };
+    s.onerror = ()=>{ clearTimeout(t); adGithubDown = true; finish(false); };
+    s.src = AD_GH_JS+'?t='+Date.now();
+    document.head.appendChild(s);
+  });
+}
+async function fetchAds(url, from){
+  try{
+    const r = await fetch(url, {cache:'no-store', signal: AbortSignal.timeout(6000)});
+    if(!r.ok) return null;
+    const j = await r.json();
+    const list = Array.isArray(j) ? j : (j && j.ads);
+    if(!list || !list.length) return null;
+    if(j && j.rev) adRev = String(j.rev);
+    return {list: list, from: from};
+  }catch(e){ return null; }
 }
 function paintAd(i, fade){
   const a = adList[i]; if(!a) return;
@@ -3034,22 +3109,38 @@ function paintAd(i, fade){
       return;
     }
     slot.classList.remove('textmode');
-    img.alt = a.label || 'Sponsored';
+    img.alt = a.label || 'Banner';
     img.onerror = ()=>{
       img.onerror = null;
+      const local = adLocalSrc(adName(a.image));
+      if(local && img.getAttribute('data-fell')!=='1' && img.src.indexOf(local)<0){
+        img.setAttribute('data-fell','1');
+        img.src = local;
+        return;
+      }
       const house = adHouse(a);
       if(house) adList[i] = HOUSE_TEXT.find(x=>x.house===house) || HOUSE_TEXT[0];
       else adList.splice(i, 1);
       if(!adList.length) adList = HOUSE_TEXT.slice();
       paintAd(i % adList.length, false);
     };
-    img.src = adImage(a.image) + '?v=80';
+    img.setAttribute('data-fell','0');
+    img.src = a.image;
     if(link){
-      link.href = a.link || 'https://x.com/keepsitcrypt0';
-      link.target = '_blank';
-      link.rel = 'noopener';
+      const href = a.link || 'mailto:pulsestrategy369@gmail.com';
+      link.href = href;
+      if(/^mailto:/i.test(href)){
+        link.removeAttribute('target');
+        link.rel = '';
+      } else {
+        link.target = '_blank';
+        link.rel = 'noopener';
+      }
     }
-    if(lab) lab.textContent = a.label || 'Sponsored';
+    if(lab){
+      lab.textContent = a.label || '';
+      lab.style.display = a.label ? '' : 'none';
+    }
     slot.classList.remove('fade');
   };
   const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -3062,18 +3153,25 @@ async function startAds(){
   adList = HOUSE_TEXT.slice();
   adIdx = 0;
   paintAd(0, false);
-  const urls = ['https://pulsestrategy369.com/ads.json', '/ads.json', 'ads.json'];
-  let ads = null;
-  for(const u of urls){
-    try{
-      const r = await fetch(u, {signal: AbortSignal.timeout(6000)});
-      if(!r.ok) continue;
-      const j = await r.json();
-      const list = Array.isArray(j) ? j : (j && j.ads);
-      if(list && list.length){ ads = list; break; }
-    }catch(e){}
+  adRev = String(Date.now());
+  const live = location.hostname==='pulsestrategy369.com' || location.hostname==='www.pulsestrategy369.com';
+  let pack = null;
+  if(!live) pack = await loadRemoteAds();
+  if(!pack){
+    const urls = live
+      ? [['/ads.json','local'], [AD_GH_JSON,'github'], ['ads.json','local']]
+      : [[AD_GH_JSON,'github'], ['ads.json','local'], ['/ads.json','local']];
+    for(const pair of urls){
+      pack = await fetchAds(pair[0], pair[1]);
+      if(pack){
+        if(pair[1]==='github') adGithubDown = false;
+        break;
+      }
+      if(pair[1]==='github') adGithubDown = true;
+    }
   }
-  const incoming = (ads || []).filter(a=>a && a.image);
+  if(!pack) pack = {list: LOCAL_ADS, from:'local'};
+  const incoming = (pack.list || []).filter(a=>a && a.image);
   for(const house of HOUSE_IMAGES){
     if(!incoming.some(a=>adHouse(a)===adHouse(house))) incoming.push(house);
   }
@@ -3082,9 +3180,9 @@ async function startAds(){
   for(const raw of incoming){
     const house = adHouse(raw);
     if(house && seen.has(house)) continue;
-    const src = adImage(raw.image);
-    if(!src || !(await adProbe(src))) continue;
-    const item = {kind:'image', image:raw.image, label:raw.label || 'Sponsored', link:raw.link || 'https://x.com/keepsitcrypt0'};
+    const src = await adFirst(raw);
+    if(!src) continue;
+    const item = {kind:'image', image:src, label:raw.label || '', link:raw.link || 'mailto:pulsestrategy369@gmail.com'};
     if(house==='vaults') item.link = VAULTS_URL;
     if(house==='launch') item.link = LAUNCH_URL;
     if(house) seen.add(house);
@@ -3092,10 +3190,15 @@ async function startAds(){
     if(ready.length>=10) break;
   }
   const list = [];
-  list.push(ready.find(a=>adHouse(a)==='vaults') || HOUSE_TEXT[0]);
-  list.push(ready.find(a=>adHouse(a)==='launch') || HOUSE_TEXT[1]);
+  const take = key => ready.find(a => adKind(a)===key);
+  list.push(take('vaults') || HOUSE_TEXT[0]);
+  const vouchAd = take('vouch'); if(vouchAd) list.push(vouchAd);
+  const actAd = take('actuator'); if(actAd) list.push(actAd);
+  const pxAd = take('pulsex'); if(pxAd) list.push(pxAd);
+  list.push(take('launch') || HOUSE_TEXT[1]);
+  const openAd = take('open'); if(openAd) list.push(openAd);
   for(const a of ready){
-    if(adHouse(a)) continue;
+    if(adKind(a)) continue;
     list.push(a);
   }
   adList = list.slice(0, 10);
