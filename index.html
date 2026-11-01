@@ -447,7 +447,7 @@ rel="noopener">Github</a> and inspect the code or download from github.</div>
 <script>document.write('<script src="' + (/(vaults|market|launch|explorer)\//.test(location.pathname) ? '../ps.js' : 'ps.js') + '"><\/script>');</script>
 <script>
 "use strict";
-var BUILD = 'v84 · 2026-10-31';
+var BUILD = 'v86 · 2026-10-31';
 var VAULTS_URL = 'https://pulsestrategy369.com/vaults'; /* ★ EDIT HERE: the one place that controls every 'Vaults' link on this page */
 var LAUNCH_URL = 'https://pulsestrategy369.com/launch'; /* ★ EDIT HERE: PulseStrategy Launcher */
 var WHITEPAPER_URL = 'https://pulsestrategy369.com/whitepaper';
@@ -3005,21 +3005,16 @@ function adHouse(a){
   if(img.includes('pulsestrategy.png') || link==='https://pulsestrategy369.com' || link===String(VAULTS_URL||'').toLowerCase().replace(/\/$/,'')) return 'vaults';
   return '';
 }
-const AD_GH_JS = 'https://raw.githubusercontent.com/PulseStrategy369/PulseStrategy/main/ads.js';
-const AD_GH_JSON = 'https://raw.githubusercontent.com/PulseStrategy369/PulseStrategy/main/ads.json';
-const AD_GH_BASE = 'https://raw.githubusercontent.com/PulseStrategy369/PulseStrategy/main/ads/';
-const AD_SITE_JSON = 'https://pulsestrategy369.com/ads.json';
-const AD_SITE_BASE = 'https://pulsestrategy369.com/ads/';
+const AD_JSON = 'https://pulsestrategy369.com/ads.json';
 const LOCAL_ADS = [
-  {image:'pulsestrategy.png', link:VAULTS_URL, label:'PulseStrategy'},
-  {image:'vouch.png', link:'https://app.vouch.run/PLS/', label:'Vouch'},
-  {image:'actuator.png', link:'https://www.actuator.finance/', label:'Actuator'},
-  {image:'pulsex.png', link:'https://pulsex.com/', label:'PulseX'},
-  {image:'launcher.png', link:LAUNCH_URL, label:'PulseStrategy Launcher'},
-  {image:'openslot.png', link:'mailto:pulsestrategy369@gmail.com', label:'Advertise'}
+  {image:'https://pulsestrategy369.com/ads/pulsestrategy.png', link:VAULTS_URL, label:'PulseStrategy'},
+  {image:'https://pulsestrategy369.com/ads/vouch.png', link:'https://app.vouch.run/PLS/', label:'Vouch'},
+  {image:'https://pulsestrategy369.com/ads/actuator.png', link:'https://www.actuator.finance/', label:'Actuator'},
+  {image:'https://pulsestrategy369.com/ads/pulsex.png', link:'https://pulsex.com/', label:'PulseX'},
+  {image:'https://pulsestrategy369.com/ads/launcher.png', link:LAUNCH_URL, label:'PulseStrategy Launcher'},
+  {image:'https://pulsestrategy369.com/ads/openslot.png', link:'mailto:pulsestrategy369@gmail.com', label:'Advertise'}
 ];
 let adRev = '';
-let adGithubDown = false;
 function adName(url){
   return String(url||'').split('/').pop().split('?')[0];
 }
@@ -3030,14 +3025,11 @@ function adLocalSrc(name){
   if(/\/explorer\/?$/.test(location.pathname) || location.pathname.indexOf('/explorer/')===0) return '/ads/'+name;
   return 'ads/'+name;
 }
-function adCandidates(raw){
-  const name = adName(raw && raw.image);
-  const out = [];
-  const push = u => { if(u && out.indexOf(u)<0) out.push(u); };
-  if(!adGithubDown && name) push(AD_GH_BASE+name+'?t='+adRev);
-  push(adLocalSrc(name)+'?t='+adRev);
-  if(name) push(AD_SITE_BASE+name+'?t='+adRev);
-  return out;
+function adRemote(raw){
+  const image = String((raw && raw.image) || '').split('?')[0];
+  if(/^https?:/i.test(image)) return image;
+  const name = adName(image);
+  return name ? ('https://pulsestrategy369.com/ads/'+name) : '';
 }
 function adProbe(src){
   return new Promise(resolve=>{
@@ -3050,45 +3042,28 @@ function adProbe(src){
     img.src = src;
   });
 }
-async function adFirst(raw){
-  const list = adCandidates(raw);
-  for(const src of list){
-    if(adGithubDown && src.indexOf('githubusercontent.com')>=0) continue;
-    if(await adProbe(src)) return src;
-    if(src.indexOf('githubusercontent.com')>=0) adGithubDown = true;
+async function adPick(raw){
+  const remote = adRemote(raw);
+  if(remote){
+    const fresh = remote + (remote.indexOf('?')<0 ? '?t='+adRev : '&t='+adRev);
+    if(await adProbe(fresh)) return fresh;
   }
+  const local = adLocalSrc(adName(raw && raw.image));
+  if(local && local !== remote && await adProbe(local)) return local;
   return '';
 }
-function loadRemoteAds(){
-  return new Promise(resolve=>{
-    const s = document.createElement('script');
-    let done = false;
-    const finish = ok => {
-      if(done) return;
-      done = true;
-      const pack = window.PS_ADS;
-      const list = pack && (Array.isArray(pack) ? pack : pack.ads);
-      if(ok && list && list.length){
-        if(pack.rev) adRev = String(pack.rev);
-        resolve({list: list, from:'github'});
-      } else resolve(null);
-    };
-    const t = setTimeout(()=>{ adGithubDown = true; finish(false); }, 6000);
-    s.onload = ()=>{ clearTimeout(t); finish(true); };
-    s.onerror = ()=>{ clearTimeout(t); adGithubDown = true; finish(false); };
-    s.src = AD_GH_JS+'?t='+Date.now();
-    document.head.appendChild(s);
-  });
-}
-async function fetchAds(url, from){
+async function loadAdList(){
   try{
-    const r = await fetch(url, {cache:'no-store', signal: AbortSignal.timeout(6000)});
+    const r = await fetch(AD_JSON, {cache:'no-store', signal: AbortSignal.timeout(6000)});
     if(!r.ok) return null;
     const j = await r.json();
     const list = Array.isArray(j) ? j : (j && j.ads);
     if(!list || !list.length) return null;
-    if(j && j.rev) adRev = String(j.rev);
-    return {list: list, from: from};
+    return list.map(a=>({
+      image: String((a && a.image) || ''),
+      link: String((a && a.link) || ''),
+      label: String((a && a.label) || '')
+    })).filter(a=>a.image);
   }catch(e){ return null; }
 }
 function paintAd(i, fade){
@@ -3127,7 +3102,7 @@ function paintAd(i, fade){
     img.setAttribute('data-fell','0');
     img.src = a.image;
     if(link){
-      const href = a.link || 'mailto:pulsestrategy369@gmail.com';
+      const href = a.link || VAULTS_URL;
       link.href = href;
       if(/^mailto:/i.test(href)){
         link.removeAttribute('target');
@@ -3154,54 +3129,16 @@ async function startAds(){
   adIdx = 0;
   paintAd(0, false);
   adRev = String(Date.now());
-  const live = location.hostname==='pulsestrategy369.com' || location.hostname==='www.pulsestrategy369.com';
-  let pack = null;
-  if(!live) pack = await loadRemoteAds();
-  if(!pack){
-    const urls = live
-      ? [['/ads.json','local'], [AD_GH_JSON,'github'], ['ads.json','local']]
-      : [[AD_GH_JSON,'github'], ['ads.json','local'], ['/ads.json','local']];
-    for(const pair of urls){
-      pack = await fetchAds(pair[0], pair[1]);
-      if(pack){
-        if(pair[1]==='github') adGithubDown = false;
-        break;
-      }
-      if(pair[1]==='github') adGithubDown = true;
-    }
-  }
-  if(!pack) pack = {list: LOCAL_ADS, from:'local'};
-  const incoming = (pack.list || []).filter(a=>a && a.image);
-  for(const house of HOUSE_IMAGES){
-    if(!incoming.some(a=>adHouse(a)===adHouse(house))) incoming.push(house);
-  }
+  const remote = await loadAdList();
+  const incoming = (remote && remote.length ? remote : LOCAL_ADS).filter(a=>a && a.image);
   const ready = [];
-  const seen = new Set();
   for(const raw of incoming){
-    const house = adHouse(raw);
-    if(house && seen.has(house)) continue;
-    const src = await adFirst(raw);
+    const src = await adPick(raw);
     if(!src) continue;
-    const item = {kind:'image', image:src, label:raw.label || '', link:raw.link || 'mailto:pulsestrategy369@gmail.com'};
-    if(house==='vaults') item.link = VAULTS_URL;
-    if(house==='launch') item.link = LAUNCH_URL;
-    if(house) seen.add(house);
-    ready.push(item);
+    ready.push({kind:'image', image:src, label:raw.label || '', link:raw.link || VAULTS_URL});
     if(ready.length>=10) break;
   }
-  const list = [];
-  const take = key => ready.find(a => adKind(a)===key);
-  list.push(take('vaults') || HOUSE_TEXT[0]);
-  const vouchAd = take('vouch'); if(vouchAd) list.push(vouchAd);
-  const actAd = take('actuator'); if(actAd) list.push(actAd);
-  const pxAd = take('pulsex'); if(pxAd) list.push(pxAd);
-  list.push(take('launch') || HOUSE_TEXT[1]);
-  const openAd = take('open'); if(openAd) list.push(openAd);
-  for(const a of ready){
-    if(adKind(a)) continue;
-    list.push(a);
-  }
-  adList = list.slice(0, 10);
+  adList = ready.length ? ready.slice(0, 10) : HOUSE_TEXT.slice();
   adIdx = 0;
   paintAd(0, false);
   if(adTimer) clearInterval(adTimer);
