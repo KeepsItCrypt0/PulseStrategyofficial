@@ -1,14 +1,10 @@
 {
+  "rev": "85",
   "ads": [
     {
       "image": "https://pulsestrategy369.com/ads/pulsestrategy.png",
       "link": "https://pulsestrategy369.com/vaults",
       "label": "PulseStrategy"
-    },
-    {
-      "image": "https://pulsestrategy369.com/ads/launcher.png",
-      "link": "https://pulsestrategy369.com/launch",
-      "label": "PulseStrategy Launcher"
     },
     {
       "image": "https://pulsestrategy369.com/ads/vouch.png",
@@ -21,9 +17,19 @@
       "label": "Actuator"
     },
     {
+      "image": "https://pulsestrategy369.com/ads/pulsex.png",
+      "link": "https://pulsex.com/",
+      "label": "PulseX"
+    },
+    {
+      "image": "https://pulsestrategy369.com/ads/launcher.png",
+      "link": "https://pulsestrategy369.com/launch",
+      "label": "PulseStrategy Launcher"
+    },
+    {
       "image": "https://pulsestrategy369.com/ads/openslot.png",
-      "link": "https://x.com/keepsitcrypt0",
-      "label": "Open slot · DM @keepsitcrypt0"
+      "link": "mailto:pulsestrategy369@gmail.com",
+      "label": "Advertise"
     }
   ]
 }
