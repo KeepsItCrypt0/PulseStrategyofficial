@@ -42,6 +42,7 @@ Bundle view calls through Multicall3 at `0xcA11bde05977b3631167028862bE2a173976C
 - Do not call `genesisUncapped`, `currentQuotaBps`, `creator`, or `factory` on the six core vaults. Those exist only on launched vaults. `mintQuotaRemaining()` exists on every vault. `type(uint256).max` means uncapped.
 - Core event: `EpochRolled(uint256 indexed epoch, uint256 quota)`. Launch event: `EpochRolled(uint256 indexed epoch, uint256 quotaBps, uint256 quota)`.
 - Creating a vault sends exactly 10000 PLS and a seed of at least 10 whole backing tokens. The PLS does not enter the vault.
+- .pls names resolve through the PulseChain Name Service registry at `0xbd5133993FCDED5945c5539D9f032261F0d13170`. That registry is not a PulseStrategy contract.
 - LP rewards are not a farm and not an emission. LP stays in the wallet. Nothing is claimable unless a funder has deposited. `register` accepts a PulseX v2 pair only.
 - Watch `Minted` and `Redeemed` instead of polling backing.
 - These contracts have not received a paid third-party audit. They are immutable, so a bug would be permanent.
