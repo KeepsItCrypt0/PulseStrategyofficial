@@ -1,4 +1,0 @@
-.git
-.wrangler
-.gitignore
-node_modules
