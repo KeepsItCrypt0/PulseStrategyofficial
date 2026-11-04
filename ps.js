@@ -4,14 +4,15 @@
   var PNS = "0xbd5133993FCDED5945c5539D9f032261F0d13170";
   var WALLET_KEY = "ps_wallet";
   var ADDR_KEY = "ps_addr";
-  var CACHE_KEY = "ps_names_v1";
+  var CACHE_KEY = "ps_names_v3";
   var TTL_HIT = 7 * 86400000;
-  var TTL_MISS = 12 * 3600000;
+  var TTL_MISS = 45 * 1000;
   var RC = [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
   var ROT = [0,1,62,28,27,36,44,6,55,20,3,10,43,25,39,41,45,15,21,8,18,2,61,56,14];
   var PIL = [[0,0],[1,1],[2,2],[3,3],[4,4],[0,5],[1,6],[2,7],[3,8],[4,9],[0,10],[1,11],[2,12],[3,13],[4,14],[0,15],[1,16],[2,17],[3,18],[4,19],[0,20],[1,21],[2,22],[3,23],[4,24]];
   var caller = null;
   var mem = Object.create(null);
+  var missAt = Object.create(null);
   var queue = [];
   var flushing = false;
   var listeners = [];
@@ -105,8 +106,10 @@
     return out;
   }
   function namehash(name){
+    var n = String(name || "").toLowerCase();
+    if(window.ethers && ethers.namehash) return ethers.namehash(n);
     var node = new Uint8Array(32);
-    var labels = String(name || "").toLowerCase().split(".").filter(Boolean);
+    var labels = n.split(".").filter(Boolean);
     for(var i = labels.length - 1; i >= 0; i--){
       var lab = hexToBytes(keccakStr(labels[i]));
       var buf = new Uint8Array(64);
@@ -119,6 +122,7 @@
     return "0x" + hex;
   }
   function selOf(sig){
+    if(window.ethers && ethers.id) return ethers.id(sig).slice(2, 10);
     if(!sel[sig]) sel[sig] = keccakStr(sig).slice(0, 8);
     return sel[sig];
   }
@@ -148,7 +152,10 @@
   function saveCache(){
     try{
       var rows = {}, now = Date.now();
-      for(var k in mem) rows[k] = {n: mem[k] || "", t: now};
+      for(var k in mem){
+        if(!mem[k]) continue;
+        rows[k] = {n: mem[k], t: now};
+      }
       localStorage.setItem(CACHE_KEY, JSON.stringify({v: 1, rows: rows}));
     }catch(_){}
   }
@@ -174,7 +181,12 @@
   function on(fn){ if(typeof fn === "function") listeners.push(fn); }
   function want(a){
     var id = norm(a);
-    if(!id || Object.prototype.hasOwnProperty.call(mem, id)) return;
+    if(!id) return;
+    if(Object.prototype.hasOwnProperty.call(mem, id)){
+      if(mem[id]) return;
+      if(missAt[id] && Date.now() - missAt[id] < TTL_MISS) return;
+      delete mem[id];
+    }
     if(queue.indexOf(id) === -1) queue.push(id);
     if(!flushing) flush();
   }
@@ -199,22 +211,29 @@
     return s;
   }
   async function ethCall(to, data){
-    if(!caller) return "0x";
+    if(!caller) return null;
     var out = await caller(to, data);
-    return out || "0x";
+    if(!out || out === "0x" || String(out).replace(/^0x/, "").length < 64) return null;
+    return out;
   }
   async function resolveOne(id){
     var node = namehash(id.slice(2) + ".addr.reverse").replace(/^0x/, "");
     var resHex = await ethCall(PNS, "0x" + selOf("resolver(bytes32)") + node);
+    if(resHex == null) return null;
     var resolver = decodeAddr(resHex);
     if(!resolver || resolver === "0x0000000000000000000000000000000000000000") return "";
     var nameHex = await ethCall(resolver, "0x" + selOf("name(bytes32)") + node);
+    if(nameHex == null) return null;
     var nm = String(decodeString(nameHex) || "").trim();
     if(!looksLikeName(nm)) return "";
     var fwd = namehash(nm).replace(/^0x/, "");
-    var fwdRes = decodeAddr(await ethCall(PNS, "0x" + selOf("resolver(bytes32)") + fwd));
+    var fwdResHex = await ethCall(PNS, "0x" + selOf("resolver(bytes32)") + fwd);
+    if(fwdResHex == null) return null;
+    var fwdRes = decodeAddr(fwdResHex);
     if(!fwdRes || fwdRes === "0x0000000000000000000000000000000000000000") return "";
-    var got = decodeAddr(await ethCall(fwdRes, "0x" + selOf("addr(bytes32)") + fwd));
+    var gotHex = await ethCall(fwdRes, "0x" + selOf("addr(bytes32)") + fwd);
+    if(gotHex == null) return null;
+    var got = decodeAddr(gotHex);
     return got === id ? nm : "";
   }
   async function flush(){
@@ -229,6 +248,7 @@
         for(var i = 0; i < batch.length; i++){
           if(names[i] == null){ queue.push(batch[i]); continue; }
           mem[batch[i]] = names[i];
+          if(!names[i]) missAt[batch[i]] = Date.now();
           changed = true;
         }
         if(changed){ saveCache(); paint(); changed = false; }
